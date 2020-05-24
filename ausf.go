@@ -11,7 +11,7 @@ package main
 import (
 	"fmt"
 	"free5gc/src/app"
-	"free5gc/src/ausf/ausf_service"
+	"free5gc/src/ausf/service"
 	"free5gc/src/ausf/logger"
 	"free5gc/src/ausf/version"
 	"os"
@@ -20,7 +20,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-var AUSF = &ausf_service.AUSF{}
+var AUSF = &service.AUSF{}
 
 var appLog *logrus.Entry
 
