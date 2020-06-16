@@ -8,6 +8,7 @@ import (
 
 type AUSFContext struct {
 	NfId            string
+	ServerIPv4      string
 	GroupId         string
 	HttpIpv4Port    int
 	HttpIPv4Address string

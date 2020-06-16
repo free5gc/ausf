@@ -6,6 +6,7 @@ import (
 	"free5gc/lib/path_util"
 	"free5gc/src/ausf/factory"
 	"free5gc/src/ausf/logger"
+	"os"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -24,10 +25,23 @@ func InitAusfContext(context *AUSFContext) {
 
 	configuration := config.Configuration
 	sbi := configuration.Sbi
-
+	context.ServerIPv4 = os.Getenv(configuration.ServerIPv4)
+	if context.ServerIPv4 == "" {
+		logger.InitLog.Warn("Problem parsing ServerIPv4 address from ENV Variable. Trying to parse it as string.")
+		context.ServerIPv4 = configuration.ServerIPv4
+		if context.ServerIPv4 == "" {
+			logger.InitLog.Warn("Error parsing ServerIPv4 address as string. Using the localhost address as default.")
+			context.ServerIPv4 = "127.0.0.1"
+		}
+	}
 	context.NfId = uuid.New().String()
 	context.GroupId = configuration.GroupId
-	context.NrfUri = configuration.NrfUri
+	if configuration.NrfUri != "" {
+		context.NrfUri = configuration.NrfUri
+	} else {
+		logger.InitLog.Warn("NRF Uri is empty! Using localhost as NRF IPv4 address.")
+		context.NrfUri = fmt.Sprintf("%s://%s:%d", context.UriScheme, "127.0.0.1", 29510)
+	}
 	context.UriScheme = models.UriScheme(configuration.Sbi.Scheme) // default uri scheme
 	context.HttpIPv4Address = "127.0.0.1"                          // default localhost
 	context.HttpIpv4Port = 29509                                   // default port

@@ -19,6 +19,8 @@ type Info struct {
 }
 
 type Configuration struct {
+	ServerIPv4 string `yaml:"serverIPv4,omitempty"`
+
 	Sbi *Sbi `yaml:"sbi,omitempty"`
 
 	ServiceNameList []string `yaml:"serviceNameList,omitempty"`
