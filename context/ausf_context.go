@@ -4,9 +4,12 @@ import (
 	// "fmt"
 	"free5gc/lib/openapi/models"
 	"regexp"
+	"sync"
 )
 
 type AUSFContext struct {
+	suciSupiMap     sync.Map
+	UePool          sync.Map
 	NfId            string
 	GroupId         string
 	HttpIpv4Port    int
@@ -17,6 +20,7 @@ type AUSFContext struct {
 	NfService       map[models.ServiceName]models.NfService
 	PlmnList        []models.PlmnId
 	UdmUeauUrl      string
+	snRegex         *regexp.Regexp
 }
 
 type AusfUeContext struct {
@@ -57,14 +61,9 @@ const (
 )
 
 var ausfContext AUSFContext
-var ausfUeContextPool map[string]*AusfUeContext
-var suciSupiMap map[string]*SuciSupiMap
-var snRegex *regexp.Regexp
 
 func Init() {
-	ausfUeContextPool = make(map[string]*AusfUeContext)
-	suciSupiMap = make(map[string]*SuciSupiMap)
-	snRegex, _ = regexp.Compile("5G:mnc[0-9]{3}[.]mcc[0-9]{3}[.]3gppnetwork[.]org")
+	ausfContext.snRegex, _ = regexp.Compile("5G:mnc[0-9]{3}[.]mcc[0-9]{3}[.]3gppnetwork[.]org")
 	InitAusfContext(&ausfContext)
 }
 
@@ -75,15 +74,17 @@ func NewAusfUeContext(identifier string) (ausfUeContext *AusfUeContext) {
 }
 
 func AddAusfUeContextToPool(ausfUeContext *AusfUeContext) {
-	ausfUeContextPool[ausfUeContext.Supi] = ausfUeContext
+	ausfContext.UePool.Store(ausfUeContext.Supi, ausfUeContext)
 }
 
 func CheckIfAusfUeContextExists(ref string) bool {
-	return (ausfUeContextPool[ref] != nil)
+	_, ok := ausfContext.UePool.Load(ref)
+	return ok
 }
 
-func GetAusfUeContext(ref string) (ausfUeContext *AusfUeContext) {
-	ausfUeContext = ausfUeContextPool[ref]
+func GetAusfUeContext(ref string) *AusfUeContext {
+	context, _ := ausfContext.UePool.Load(ref)
+	ausfUeContext := context.(*AusfUeContext)
 	return ausfUeContext
 }
 
@@ -91,19 +92,23 @@ func AddSuciSupiPairToMap(supiOrSuci string, supi string) {
 	newPair := new(SuciSupiMap)
 	newPair.SupiOrSuci = supiOrSuci
 	newPair.Supi = supi
-	suciSupiMap[supiOrSuci] = newPair
+	ausfContext.suciSupiMap.Store(supiOrSuci, newPair)
 }
 
 func CheckIfSuciSupiPairExists(ref string) bool {
-	return (suciSupiMap[ref] != nil)
+	_, ok := ausfContext.suciSupiMap.Load(ref)
+	return ok
 }
 
 func GetSupiFromSuciSupiMap(ref string) (supi string) {
-	return suciSupiMap[ref].Supi
+	val, _ := ausfContext.suciSupiMap.Load(ref)
+	suciSupiMap := val.(*SuciSupiMap)
+	supi = suciSupiMap.Supi
+	return supi
 }
 
 func IsServingNetworkAuthorized(lookup string) bool {
-	if snRegex.MatchString(lookup) {
+	if ausfContext.snRegex.MatchString(lookup) {
 		return true
 	} else {
 		return false

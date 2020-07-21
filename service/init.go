@@ -9,7 +9,6 @@ import (
 	"free5gc/src/ausf/consumer"
 	ausf_context "free5gc/src/ausf/context"
 	"free5gc/src/ausf/factory"
-	"free5gc/src/ausf/handler"
 	"free5gc/src/ausf/logger"
 	"free5gc/src/ausf/ueauthentication"
 	"free5gc/src/ausf/util"
@@ -66,13 +65,18 @@ func (*AUSF) Initialize(c *cli.Context) {
 		factory.InitConfigFactory(DefaultAusfConfigPath)
 	}
 
-	initLog.Traceln("AUSF debug level(string):", app.ContextSelf().Logger.AUSF.DebugLevel)
 	if app.ContextSelf().Logger.AUSF.DebugLevel != "" {
-		initLog.Infoln("AUSF debug level(string):", app.ContextSelf().Logger.AUSF.DebugLevel)
 		level, err := logrus.ParseLevel(app.ContextSelf().Logger.AUSF.DebugLevel)
-		if err == nil {
+		if err != nil {
+			initLog.Warnf("Log level [%s] is not valid, set to [info] level", app.ContextSelf().Logger.AUSF.DebugLevel)
+			logger.SetLogLevel(logrus.InfoLevel)
+		} else {
 			logger.SetLogLevel(level)
+			initLog.Infof("Log level is set to [%s] level", level)
 		}
+	} else {
+		initLog.Infoln("Log level is default set to [info] level")
+		logger.SetLogLevel(logrus.InfoLevel)
 	}
 
 	logger.SetReportCaller(app.ContextSelf().Logger.AUSF.ReportCaller)
@@ -112,7 +116,6 @@ func (ausf *AUSF) Start() {
 
 	ausfLogPath := util.AusfLogPath
 
-	go handler.Handle()
 	server, err := http2_util.NewServer(":29509", ausfLogPath, router)
 	if server == nil {
 		initLog.Errorln("Initialize HTTP server failed: %+v", err)
@@ -136,8 +139,6 @@ func (ausf *AUSF) Start() {
 }
 
 func (ausf *AUSF) Exec(c *cli.Context) error {
-
-	//AUSF.Initialize(cfgPath, c)
 
 	initLog.Traceln("args:", c.String("ausfcfg"))
 	args := ausf.FilterCli(c)

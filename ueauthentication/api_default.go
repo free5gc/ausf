@@ -11,74 +11,161 @@ package ueauthentication
 
 import (
 	"free5gc/lib/http_wrapper"
+	"free5gc/lib/openapi"
 	"free5gc/lib/openapi/models"
-	"free5gc/src/ausf/handler"
-	"free5gc/src/ausf/handler/message"
 	"free5gc/src/ausf/logger"
+	"free5gc/src/ausf/producer"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	// "fmt"
 )
 
-// EapAuthMethod -
-func EapAuthMethod(c *gin.Context) {
+// HTTPEapAuthMethod -
+func HTTPEapAuthMethod(ctx *gin.Context) {
 	var eapSessionReq models.EapSession
 
-	err := c.ShouldBindJSON(&eapSessionReq)
+	requestBody, err := ctx.GetRawData()
 	if err != nil {
-		logger.Auth5gAkaComfirmLog.Errorln(err)
+		problemDetail := models.ProblemDetails{
+			Title:  "System failure",
+			Status: http.StatusInternalServerError,
+			Detail: err.Error(),
+			Cause:  "SYSTEM_FAILURE",
+		}
+		logger.Auth5gAkaComfirmLog.Errorf("Get Request Body error: %+v", err)
+		ctx.JSON(http.StatusInternalServerError, problemDetail)
+		return
 	}
 
-	req := http_wrapper.NewRequest(c.Request, eapSessionReq)
-	req.Params["authCtxId"] = c.Param("authCtxId")
+	err = openapi.Deserialize(&eapSessionReq, requestBody, "application/json")
+	if err != nil {
+		problemDetail := "[Request Body] " + err.Error()
+		rsp := models.ProblemDetails{
+			Title:  "Malformed request syntax",
+			Status: http.StatusBadRequest,
+			Detail: problemDetail,
+		}
+		logger.Auth5gAkaComfirmLog.Errorln(problemDetail)
+		ctx.JSON(http.StatusBadRequest, rsp)
+		return
+	}
 
-	handlerMsg := message.NewHandlerMessage(message.EventEapAuthComfirm, req)
-	handler.SendMessage(handlerMsg)
-	rsp := <-handlerMsg.ResponseChan
+	req := http_wrapper.NewRequest(ctx.Request, eapSessionReq)
+	req.Params["authCtxId"] = ctx.Param("authCtxId")
 
-	HTTPResponse := rsp.HTTPResponse
-	c.JSON(HTTPResponse.Status, HTTPResponse.Body)
+	rsp := producer.HandleEapAuthComfirmRequest(req)
+
+	responseBody, err := openapi.Serialize(rsp.Body, "application/json")
+	if err != nil {
+		logger.Auth5gAkaComfirmLog.Errorln(err)
+		problemDetails := models.ProblemDetails{
+			Status: http.StatusInternalServerError,
+			Cause:  "SYSTEM_FAILURE",
+			Detail: err.Error(),
+		}
+		ctx.JSON(http.StatusInternalServerError, problemDetails)
+	} else {
+		ctx.Data(rsp.Status, "application/json", responseBody)
+	}
 }
 
-// UeAuthenticationsAuthCtxId5gAkaConfirmationPut -
-func UeAuthenticationsAuthCtxId5gAkaConfirmationPut(c *gin.Context) {
+// HTTPUeAuthenticationsAuthCtxID5gAkaConfirmationPut -
+func HTTPUeAuthenticationsAuthCtxID5gAkaConfirmationPut(ctx *gin.Context) {
 	var confirmationData models.ConfirmationData
 
-	err := c.ShouldBindJSON(&confirmationData)
+	requestBody, err := ctx.GetRawData()
+	if err != nil {
+		problemDetail := models.ProblemDetails{
+			Title:  "System failure",
+			Status: http.StatusInternalServerError,
+			Detail: err.Error(),
+			Cause:  "SYSTEM_FAILURE",
+		}
+		logger.Auth5gAkaComfirmLog.Errorf("Get Request Body error: %+v", err)
+		ctx.JSON(http.StatusInternalServerError, problemDetail)
+		return
+	}
+
+	err = openapi.Deserialize(&confirmationData, requestBody, "application/json")
+	if err != nil {
+		problemDetail := "[Request Body] " + err.Error()
+		rsp := models.ProblemDetails{
+			Title:  "Malformed request syntax",
+			Status: http.StatusBadRequest,
+			Detail: problemDetail,
+		}
+		logger.Auth5gAkaComfirmLog.Errorln(problemDetail)
+		ctx.JSON(http.StatusBadRequest, rsp)
+		return
+	}
+
+	req := http_wrapper.NewRequest(ctx.Request, confirmationData)
+	req.Params["authCtxId"] = ctx.Param("authCtxId")
+
+	rsp := producer.HandleAuth5gAkaComfirmRequest(req)
+
+	responseBody, err := openapi.Serialize(rsp.Body, "application/json")
 	if err != nil {
 		logger.Auth5gAkaComfirmLog.Errorln(err)
+		problemDetails := models.ProblemDetails{
+			Status: http.StatusInternalServerError,
+			Cause:  "SYSTEM_FAILURE",
+			Detail: err.Error(),
+		}
+		ctx.JSON(http.StatusInternalServerError, problemDetails)
+	} else {
+		ctx.Data(rsp.Status, "application/json", responseBody)
 	}
-
-	req := http_wrapper.NewRequest(c.Request, confirmationData)
-	req.Params["authCtxId"] = c.Param("authCtxId")
-
-	handlerMsg := message.NewHandlerMessage(message.EventAuth5gAkaComfirm, req)
-	handler.SendMessage(handlerMsg)
-	rsp := <-handlerMsg.ResponseChan
-
-	HTTPResponse := rsp.HTTPResponse
-	c.JSON(HTTPResponse.Status, HTTPResponse.Body)
 }
 
-// UeAuthenticationsPost -
-func UeAuthenticationsPost(c *gin.Context) {
+// HTTPUeAuthenticationsPost -
+func HTTPUeAuthenticationsPost(ctx *gin.Context) {
 	var authInfo models.AuthenticationInfo
 
-	err := c.ShouldBindJSON(&authInfo)
+	requestBody, err := ctx.GetRawData()
+	if err != nil {
+		problemDetail := models.ProblemDetails{
+			Title:  "System failure",
+			Status: http.StatusInternalServerError,
+			Detail: err.Error(),
+			Cause:  "SYSTEM_FAILURE",
+		}
+		logger.UeAuthPostLog.Errorf("Get Request Body error: %+v", err)
+		ctx.JSON(http.StatusInternalServerError, problemDetail)
+		return
+	}
+
+	err = openapi.Deserialize(&authInfo, requestBody, "application/json")
+	if err != nil {
+		problemDetail := "[Request Body] " + err.Error()
+		rsp := models.ProblemDetails{
+			Title:  "Malformed request syntax",
+			Status: http.StatusBadRequest,
+			Detail: problemDetail,
+		}
+		logger.UeAuthPostLog.Errorln(problemDetail)
+		ctx.JSON(http.StatusBadRequest, rsp)
+		return
+	}
+
+	req := http_wrapper.NewRequest(ctx.Request, authInfo)
+
+	rsp := producer.HandleUeAuthPostRequest(req)
+
+	for key, value := range rsp.Header {
+		ctx.Header(key, value[0])
+	}
+	responseBody, err := openapi.Serialize(rsp.Body, "application/json")
 	if err != nil {
 		logger.UeAuthPostLog.Errorln(err)
+		problemDetails := models.ProblemDetails{
+			Status: http.StatusInternalServerError,
+			Cause:  "SYSTEM_FAILURE",
+			Detail: err.Error(),
+		}
+		ctx.JSON(http.StatusInternalServerError, problemDetails)
+	} else {
+		ctx.Data(rsp.Status, "application/json", responseBody)
 	}
-
-	req := http_wrapper.NewRequest(c.Request, authInfo)
-
-	handlerMsg := message.NewHandlerMessage(message.EventUeAuthPost, req)
-	handler.SendMessage(handlerMsg)
-	rsp := <-handlerMsg.ResponseChan
-
-	HTTPResponse := rsp.HTTPResponse
-	HTTPRespHeader := rsp.HTTPResponse.Header
-	for k, v := range HTTPRespHeader {
-		c.Header(k, v[0])
-	}
-	c.JSON(HTTPResponse.Status, HTTPResponse.Body)
 }
