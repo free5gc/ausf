@@ -72,23 +72,23 @@ var routes = Routes{
 	},
 
 	{
-		"EapAuthMethod",
+		"HTTPEapAuthMethod",
 		strings.ToUpper("Post"),
 		"/ue-authentications/:authCtxId/eap-session",
-		EapAuthMethod,
+		HTTPEapAuthMethod,
 	},
 
 	{
-		"UeAuthenticationsAuthCtxId5gAkaConfirmationPut",
+		"HTTPUeAuthenticationsAuthCtxID5gAkaConfirmationPut",
 		strings.ToUpper("Put"),
 		"/ue-authentications/:authCtxId/5g-aka-confirmation",
-		UeAuthenticationsAuthCtxId5gAkaConfirmationPut,
+		HTTPUeAuthenticationsAuthCtxID5gAkaConfirmationPut,
 	},
 
 	{
-		"UeAuthenticationsPost",
+		"HTTPUeAuthenticationsPost",
 		strings.ToUpper("Post"),
 		"/ue-authentications",
-		UeAuthenticationsPost,
+		HTTPUeAuthenticationsPost,
 	},
 }

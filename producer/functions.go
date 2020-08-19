@@ -30,10 +30,6 @@ func KDF5gAka(param ...string) hash.Hash {
 	s += strconv.FormatInt(int64(p0len), 16)
 	h := hmac.New(sha256.New, []byte(s))
 
-	// Test data
-	/* s2, _ := hex.DecodeString("4a656665")
-	h := hmac.New(sha256.New, s2) */
-
 	return h
 }
 
@@ -60,7 +56,6 @@ func CalculateAtMAC(key []byte, input []byte) []byte {
 		logger.EapAuthComfirmLog.Errorln(err.Error())
 	}
 	sha := string(h.Sum(nil))
-	// fmt.Printf("[CalculateAtMAC] input: %x, key = %x\n sha: %x\n sha[:16]: %x\n", input, key, sha, sha[:16])
 	return []byte(sha[:16])
 }
 
@@ -98,7 +93,6 @@ func EapEncodeAttribute(attributeType string, data string) (returnStr string, er
 		b[1] = byte(length)
 		copy(b[2:4], byteNameLength)
 		copy(b[4:], pad)
-		// fmt.Printf("AT_KDF_INPUT: %x\n", b[:])
 		return string(b[:]), nil
 
 	case "AT_KDF":
@@ -131,21 +125,14 @@ func EapEncodeAttribute(attributeType string, data string) (returnStr string, er
 	}
 
 	r, _ = hex.DecodeString(attribute)
-	// fmt.Printf("%s: %x\n", attributeType, r)
 	return string(r), nil
 }
 
 func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (K_encr string, K_aut string, K_re string, MSK string, EMSK string) {
 	keyAp := ikPrime + ckPrime
 
-	// Test data
-	// key, _ := hex.DecodeString("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")
-
 	key, _ := hex.DecodeString(keyAp)
 	sBase := []byte("EAP-AKA'" + identity)
-
-	// Test data
-	// sBase := []byte("Hi There")
 
 	MK := ""
 	prev := []byte("")
@@ -168,7 +155,6 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (K_encr str
 		sha := string(h.Sum(nil))
 		MK += sha
 		prev = []byte(sha)
-		// fmt.Printf("MK(len %d): %s\n", len(MK), MK)
 	}
 
 	K_encr = MK[0:16]  // 0..127
@@ -176,7 +162,6 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (K_encr str
 	K_re = MK[48:80]   // 384..639
 	MSK = MK[80:144]   // 640..1151
 	EMSK = MK[144:208] // 1152..1663
-	// fmt.Printf(" K_encr: %x\n K_aut: %x\n K_re: %x\n MSK: %x\n EMSK: %x\n", K_encr, K_aut, K_re, MSK, EMSK)
 	return K_encr, K_aut, K_re, MSK, EMSK
 }
 
@@ -188,9 +173,7 @@ func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn
 	zeroBytes, _ := hex.DecodeString("00000000000000000000000000000000")
 	copy(eapDecode.Data[offset+4:offset+20], zeroBytes)
 	encodeAfter := eapDecode.Encode()
-	// fmt.Printf("check pkt with MAC val 0: %x, key = %x\n", encodeAfter, Kautn)
 	MACvalue := CalculateAtMAC([]byte(Kautn), encodeAfter)
-	// fmt.Printf("MAC value = %x\nExpected %x\n", MACvalue, expectedMacValue)
 
 	if bytes.Equal(MACvalue, expectedMacValue) {
 		return true
@@ -206,7 +189,6 @@ func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) (RES []by
 	dataArray := packetData
 	var attributeLength int
 	var attributeType int
-	// fmt.Printf("packet's data: %x\n", dataArray)
 
 	for i := 0; i < len(dataArray); i += attributeLength {
 		attributeLength = int(uint(dataArray[1+i])) * 4
@@ -249,7 +231,6 @@ func ConstructFailEapAkaNotification(oldPktId uint8) string {
 	eapPkt.Identifier = oldPktId + 1
 	eapPkt.Type = ausf_context.EAP_AKA_PRIME_TYPENUM
 	attrNum := fmt.Sprintf("%02x", ausf_context.AT_NOTIFICATION_ATTRIBUTE)
-	// S bit = 0, P bit = 1 (0100 0000 0000 0000 = 16384)
 	attribute := attrNum + "01" + "4000"
 	attrHex, _ := hex.DecodeString(attribute)
 	eapPkt.Data = attrHex
@@ -262,7 +243,6 @@ func ConstructEapNoTypePkt(code radius.EapCode, pktID uint8) string {
 	b[0] = byte(code)
 	b[1] = byte(pktID)
 	binary.BigEndian.PutUint16(b[2:4], uint16(4))
-	// fmt.Printf("NoTypePkt: %x\n", b)
 	return base64.StdEncoding.EncodeToString(b)
 }
 
