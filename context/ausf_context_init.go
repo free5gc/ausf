@@ -25,29 +25,16 @@ func InitAusfContext(context *AUSFContext) {
 
 	configuration := config.Configuration
 	sbi := configuration.Sbi
-	context.ServerIPv4 = os.Getenv(configuration.ServerIPv4)
-	if context.ServerIPv4 == "" {
-		logger.InitLog.Warn("Problem parsing ServerIPv4 address from ENV Variable. Trying to parse it as string.")
-		context.ServerIPv4 = configuration.ServerIPv4
-		if context.ServerIPv4 == "" {
-			logger.InitLog.Warn("Error parsing ServerIPv4 address as string. Using the localhost address as default.")
-			context.ServerIPv4 = "127.0.0.1"
-		}
-	}
+
 	context.NfId = uuid.New().String()
 	context.GroupId = configuration.GroupId
-	if configuration.NrfUri != "" {
-		context.NrfUri = configuration.NrfUri
-	} else {
-		logger.InitLog.Warn("NRF Uri is empty! Using localhost as NRF IPv4 address.")
-		context.NrfUri = fmt.Sprintf("%s://%s:%d", context.UriScheme, "127.0.0.1", 29510)
-	}
+	context.NrfUri = configuration.NrfUri
 	context.UriScheme = models.UriScheme(configuration.Sbi.Scheme) // default uri scheme
 	context.HttpIPv4Address = "127.0.0.1"                          // default localhost
 	context.HttpIpv4Port = 29509                                   // default port
 	if sbi != nil {
-		if sbi.IPv4Addr != "" {
-			context.HttpIPv4Address = sbi.IPv4Addr
+		if sbi.RegisterIPv4 != "" {
+			context.HttpIPv4Address = sbi.RegisterIPv4
 		}
 		if sbi.Port != 0 {
 			context.HttpIpv4Port = sbi.Port
@@ -57,6 +44,16 @@ func InitAusfContext(context *AUSFContext) {
 			context.UriScheme = models.UriScheme_HTTPS
 		} else {
 			context.UriScheme = models.UriScheme_HTTP
+		}
+
+		context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
+		if context.BindingIPv4 == "" {
+			logger.InitLog.Warn("Problem parsing ServerIPv4 address from ENV Variable. Trying to parse it as string.")
+			context.BindingIPv4 = sbi.BindingIPv4
+			if context.BindingIPv4 == "" {
+				logger.InitLog.Warn("Error parsing ServerIPv4 address as string. Using the localhost address as default.")
+				context.BindingIPv4 = "127.0.0.1"
+			}
 		}
 	}
 

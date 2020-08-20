@@ -11,10 +11,10 @@ type AUSFContext struct {
 	suciSupiMap     sync.Map
 	UePool          sync.Map
 	NfId            string
-	ServerIPv4      string
 	GroupId         string
 	HttpIpv4Port    int
 	HttpIPv4Address string
+	BindingIPv4		string
 	Url             string
 	UriScheme       models.UriScheme
 	NrfUri          string
