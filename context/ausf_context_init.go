@@ -48,11 +48,11 @@ func InitAusfContext(context *AUSFContext) {
 
 		context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
 		if context.BindingIPv4 == "" {
-			logger.InitLog.Warn("Problem parsing ServerIPv4 address from ENV Variable. Trying to parse it as string.")
+			logger.InitLog.Info("Problem parsing ServerIPv4 address from ENV Variable. Trying to parse it as string.")
 			context.BindingIPv4 = sbi.BindingIPv4
 			if context.BindingIPv4 == "" {
-				logger.InitLog.Warn("Error parsing ServerIPv4 address as string. Using the localhost address as default.")
-				context.BindingIPv4 = "127.0.0.1"
+				logger.InitLog.Info("Error parsing ServerIPv4 address as string. Using the 0.0.0.0 address as default.")
+				context.BindingIPv4 = "0.0.0.0"
 			}
 		}
 	}
