@@ -116,7 +116,9 @@ func (ausf *AUSF) Start() {
 
 	ausfLogPath := util.AusfLogPath
 
-	server, err := http2_util.NewServer(":29509", ausfLogPath, router)
+	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.HttpIpv4Port)
+
+	server, err := http2_util.NewServer(addr, ausfLogPath, router)
 	if server == nil {
 		initLog.Errorln("Initialize HTTP server failed: %+v", err)
 		return

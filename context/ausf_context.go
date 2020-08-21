@@ -13,7 +13,8 @@ type AUSFContext struct {
 	NfId            string
 	GroupId         string
 	HttpIpv4Port    int
-	HttpIPv4Address string
+	HttpIPv4Address string // IP register to NRF
+	BindingIPv4     string
 	Url             string
 	UriScheme       models.UriScheme
 	NrfUri          string

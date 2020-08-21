@@ -11,8 +11,8 @@ package main
 import (
 	"fmt"
 	"free5gc/src/app"
-	"free5gc/src/ausf/service"
 	"free5gc/src/ausf/logger"
+	"free5gc/src/ausf/service"
 	"free5gc/src/ausf/version"
 	"os"
 
