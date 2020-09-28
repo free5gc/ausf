@@ -2,14 +2,15 @@ package context
 
 import (
 	"fmt"
-	"free5gc/lib/openapi/models"
-	"free5gc/lib/path_util"
-	"free5gc/src/ausf/factory"
-	"free5gc/src/ausf/logger"
 	"os"
 	"strconv"
 
 	"github.com/google/uuid"
+
+	"free5gc/lib/openapi/models"
+	"free5gc/lib/path_util"
+	"free5gc/src/ausf/factory"
+	"free5gc/src/ausf/logger"
 )
 
 func TestInit() {
@@ -27,17 +28,17 @@ func InitAusfContext(context *AUSFContext) {
 	sbi := configuration.Sbi
 
 	context.NfId = uuid.New().String()
-	context.GroupId = configuration.GroupId
+	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
 	context.UriScheme = models.UriScheme(configuration.Sbi.Scheme) // default uri scheme
-	context.HttpIPv4Address = "127.0.0.1"                          // default localhost
-	context.HttpIpv4Port = 29509                                   // default port
+	context.RegisterIPv4 = "127.0.0.1"                             // default localhost
+	context.SBIPort = 29509                                        // default port
 	if sbi != nil {
 		if sbi.RegisterIPv4 != "" {
-			context.HttpIPv4Address = sbi.RegisterIPv4
+			context.RegisterIPv4 = sbi.RegisterIPv4
 		}
 		if sbi.Port != 0 {
-			context.HttpIpv4Port = sbi.Port
+			context.SBIPort = sbi.Port
 		}
 
 		if sbi.Scheme == "https" {
@@ -52,13 +53,13 @@ func InitAusfContext(context *AUSFContext) {
 		} else {
 			context.BindingIPv4 = sbi.BindingIPv4
 			if context.BindingIPv4 == "" {
-				logger.InitLog.Info("Error parsing ServerIPv4 address as string. Using the 0.0.0.0 address as default.")
+				logger.InitLog.Warn("Error parsing ServerIPv4 address as string. Using the 0.0.0.0 address as default.")
 				context.BindingIPv4 = "0.0.0.0"
 			}
 		}
 	}
 
-	context.Url = string(context.UriScheme) + "://" + context.HttpIPv4Address + ":" + strconv.Itoa(context.HttpIpv4Port)
+	context.Url = string(context.UriScheme) + "://" + context.RegisterIPv4 + ":" + strconv.Itoa(context.SBIPort)
 	context.PlmnList = append(context.PlmnList, configuration.PlmnSupportList...)
 
 	// context.NfService
@@ -78,8 +79,8 @@ func AddNfServices(serviceMap *map[models.ServiceName]models.NfService, config *
 	nfService.ServiceName = models.ServiceName_NAUSF_AUTH
 
 	var ipEndPoint models.IpEndPoint
-	ipEndPoint.Ipv4Address = context.HttpIPv4Address
-	ipEndPoint.Port = int32(context.HttpIpv4Port)
+	ipEndPoint.Ipv4Address = context.RegisterIPv4
+	ipEndPoint.Port = int32(context.SBIPort)
 	ipEndPoints = append(ipEndPoints, ipEndPoint)
 
 	var nfServiceVersion models.NfServiceVersion

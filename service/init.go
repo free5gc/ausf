@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"free5gc/lib/http2_util"
+	"free5gc/lib/logger_util"
 	"free5gc/lib/path_util"
 	"free5gc/src/app"
 	"free5gc/src/ausf/consumer"
@@ -15,7 +16,6 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -99,7 +99,7 @@ func (ausf *AUSF) FilterCli(c *cli.Context) (args []string) {
 func (ausf *AUSF) Start() {
 	initLog.Infoln("Server started")
 
-	router := gin.Default()
+	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	ueauthentication.AddService(router)
 
 	ausf_context.Init()
@@ -116,16 +116,16 @@ func (ausf *AUSF) Start() {
 
 	ausfLogPath := util.AusfLogPath
 
-	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.HttpIpv4Port)
+	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
 	server, err := http2_util.NewServer(addr, ausfLogPath, router)
 	if server == nil {
-		initLog.Errorln("Initialize HTTP server failed: %+v", err)
+		initLog.Errorf("Initialize HTTP server failed: %+v", err)
 		return
 	}
 
 	if err != nil {
-		initLog.Warnln("Initialize HTTP server: +%v", err)
+		initLog.Warnf("Initialize HTTP server: +%v", err)
 	}
 
 	serverScheme := factory.AusfConfig.Configuration.Sbi.Scheme
@@ -136,7 +136,7 @@ func (ausf *AUSF) Start() {
 	}
 
 	if err != nil {
-		initLog.Fatalln("HTTP server setup failed: %+v", err)
+		initLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
 }
 

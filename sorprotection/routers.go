@@ -10,6 +10,8 @@
 package sorprotection
 
 import (
+	"free5gc/lib/logger_util"
+	"free5gc/src/ausf/logger"
 	"net/http"
 	"strings"
 
@@ -33,7 +35,7 @@ type Routes []Route
 
 // NewRouter returns a new router.
 func NewRouter() *gin.Engine {
-	router := gin.Default()
+	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	AddService(router)
 	return router
 }

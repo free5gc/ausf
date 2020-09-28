@@ -1,27 +1,28 @@
 package context
 
 import (
-	// "fmt"
-	"free5gc/lib/openapi/models"
 	"regexp"
 	"sync"
+
+	"free5gc/lib/openapi/models"
+	"free5gc/src/ausf/logger"
 )
 
 type AUSFContext struct {
-	suciSupiMap     sync.Map
-	UePool          sync.Map
-	NfId            string
-	GroupId         string
-	HttpIpv4Port    int
-	HttpIPv4Address string // IP register to NRF
-	BindingIPv4     string
-	Url             string
-	UriScheme       models.UriScheme
-	NrfUri          string
-	NfService       map[models.ServiceName]models.NfService
-	PlmnList        []models.PlmnId
-	UdmUeauUrl      string
-	snRegex         *regexp.Regexp
+	suciSupiMap  sync.Map
+	UePool       sync.Map
+	NfId         string
+	GroupID      string
+	SBIPort      int
+	RegisterIPv4 string
+	BindingIPv4  string
+	Url          string
+	UriScheme    models.UriScheme
+	NrfUri       string
+	NfService    map[models.ServiceName]models.NfService
+	PlmnList     []models.PlmnId
+	UdmUeauUrl   string
+	snRegex      *regexp.Regexp
 }
 
 type AusfUeContext struct {
@@ -38,6 +39,7 @@ type AusfUeContext struct {
 	// for EAP-AKA'
 	K_aut string
 	XRES  string
+	Rand  string
 }
 
 type SuciSupiMap struct {
@@ -64,7 +66,11 @@ const (
 var ausfContext AUSFContext
 
 func Init() {
-	ausfContext.snRegex, _ = regexp.Compile("5G:mnc[0-9]{3}[.]mcc[0-9]{3}[.]3gppnetwork[.]org")
+	if snRegex, err := regexp.Compile("5G:mnc[0-9]{3}[.]mcc[0-9]{3}[.]3gppnetwork[.]org"); err != nil {
+		logger.ContextLog.Warnf("SN compile error: %+v", err)
+	} else {
+		ausfContext.snRegex = snRegex
+	}
 	InitAusfContext(&ausfContext)
 }
 
@@ -120,6 +126,6 @@ func GetSelf() *AUSFContext {
 	return &ausfContext
 }
 
-func (a AUSFContext) GetSelfID() string {
+func (a *AUSFContext) GetSelfID() string {
 	return a.NfId
 }

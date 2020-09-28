@@ -9,25 +9,29 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"free5gc/lib/openapi/Nnrf_NFDiscovery"
-	Nudm_UEAU "free5gc/lib/openapi/Nudm_UEAuthentication"
-	"free5gc/lib/openapi/models"
-	"free5gc/src/ausf/consumer"
-	ausf_context "free5gc/src/ausf/context"
-	"free5gc/src/ausf/logger"
 	"hash"
 	"strconv"
 	"time"
 
 	"github.com/antihax/optional"
 	"github.com/bronze1man/radius"
+
+	"free5gc/lib/openapi/Nnrf_NFDiscovery"
+	Nudm_UEAU "free5gc/lib/openapi/Nudm_UEAuthentication"
+	"free5gc/lib/openapi/models"
+	"free5gc/src/ausf/consumer"
+	ausf_context "free5gc/src/ausf/context"
+	"free5gc/src/ausf/logger"
 )
 
 func KDF5gAka(param ...string) hash.Hash {
 	s := param[0]
 	s += param[1]
-	p0len, _ := strconv.Atoi(param[2])
-	s += strconv.FormatInt(int64(p0len), 16)
+	if p0len, err := strconv.Atoi(param[2]); err != nil {
+		logger.EapAuthComfirmLog.Warnf("atoi failed: %+v", err)
+	} else {
+		s += strconv.FormatInt(int64(p0len), 16)
+	}
 	h := hmac.New(sha256.New, []byte(s))
 
 	return h
@@ -59,10 +63,10 @@ func CalculateAtMAC(key []byte, input []byte) []byte {
 	return []byte(sha[:16])
 }
 
-func EapEncodeAttribute(attributeType string, data string) (returnStr string, err error) {
+//func EapEncodeAttribute(attributeType string, data string) (returnStr string, err error) {
+func EapEncodeAttribute(attributeType string, data string) (string, error) {
 	var attribute string
 	var length int
-	var r []byte
 
 	switch attributeType {
 	case "AT_RAND":
@@ -124,19 +128,29 @@ func EapEncodeAttribute(attributeType string, data string) (returnStr string, er
 		return "", nil
 	}
 
-	r, _ = hex.DecodeString(attribute)
-	return string(r), nil
+	if r, err := hex.DecodeString(attribute); err != nil {
+		return "", err
+	} else {
+		return string(r), nil
+	}
 }
 
-func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (K_encr string, K_aut string, K_re string, MSK string, EMSK string) {
+//func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (K_encr string, K_aut string, K_re string,
+//    MSK string, EMSK string) {
+func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, string, string, string, string) {
 	keyAp := ikPrime + ckPrime
 
-	key, _ := hex.DecodeString(keyAp)
+	var key []byte
+	if keyTmp, err := hex.DecodeString(keyAp); err != nil {
+		logger.EapAuthComfirmLog.Warnf("Decode key AP failed: %+v", err)
+	} else {
+		key = keyTmp
+	}
 	sBase := []byte("EAP-AKA'" + identity)
 
 	MK := ""
 	prev := []byte("")
-	_ = prev
+	//_ = prev
 	prfRounds := 208/32 + 1
 	for i := 0; i < prfRounds; i++ {
 		// Create a new HMAC by defining the hash type and the key (as byte array)
@@ -157,11 +171,11 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (K_encr str
 		prev = []byte(sha)
 	}
 
-	K_encr = MK[0:16]  // 0..127
-	K_aut = MK[16:48]  // 128..383
-	K_re = MK[48:80]   // 384..639
-	MSK = MK[80:144]   // 640..1151
-	EMSK = MK[144:208] // 1152..1663
+	K_encr := MK[0:16]  // 0..127
+	K_aut := MK[16:48]  // 128..383
+	K_re := MK[48:80]   // 384..639
+	MSK := MK[80:144]   // 640..1151
+	EMSK := MK[144:208] // 1152..1663
 	return K_encr, K_aut, K_re, MSK, EMSK
 }
 
@@ -170,8 +184,11 @@ func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn
 	if decodeErr != nil {
 		logger.EapAuthComfirmLog.Infoln(decodeErr.Error())
 	}
-	zeroBytes, _ := hex.DecodeString("00000000000000000000000000000000")
-	copy(eapDecode.Data[offset+4:offset+20], zeroBytes)
+	if zeroBytes, err := hex.DecodeString("00000000000000000000000000000000"); err != nil {
+		logger.EapAuthComfirmLog.Warnf("Decode error: %+v", err)
+	} else {
+		copy(eapDecode.Data[offset+4:offset+20], zeroBytes)
+	}
 	encodeAfter := eapDecode.Encode()
 	MACvalue := CalculateAtMAC([]byte(Kautn), encodeAfter)
 
@@ -182,13 +199,15 @@ func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn
 	}
 }
 
-func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) (RES []byte, success bool) {
+//func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) (RES []byte, success bool) {
+func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, bool) {
 	detectRes := false
 	detectMac := false
 	macCorrect := false
 	dataArray := packetData
 	var attributeLength int
 	var attributeType int
+	var RES []byte
 
 	for i := 0; i < len(dataArray); i += attributeLength {
 		attributeLength = int(uint(dataArray[1+i])) * 4
@@ -232,7 +251,12 @@ func ConstructFailEapAkaNotification(oldPktId uint8) string {
 	eapPkt.Type = ausf_context.EAP_AKA_PRIME_TYPENUM
 	attrNum := fmt.Sprintf("%02x", ausf_context.AT_NOTIFICATION_ATTRIBUTE)
 	attribute := attrNum + "01" + "4000"
-	attrHex, _ := hex.DecodeString(attribute)
+	var attrHex []byte
+	if attrHexTmp, err := hex.DecodeString(attribute); err != nil {
+		logger.EapAuthComfirmLog.Warnf("Decode attribute failed: %+v", err)
+	} else {
+		attrHex = attrHexTmp
+	}
 	eapPkt.Data = attrHex
 	eapPktEncode := eapPkt.Encode()
 	return base64.StdEncoding.EncodeToString(eapPktEncode)
