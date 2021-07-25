@@ -222,7 +222,10 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		randIdentifier = rand.Intn(256)
 		eapPkt.Identifier = uint8(randIdentifier)
 		eapPkt.Type = radius.EapType(50) // according to RFC5448 6.1
-		var atRand, atAutn, atKdf, atKdfInput, atMAC string
+		var eapAKAHdr, atRand, atAutn, atKdf, atKdfInput, atMAC string
+		eapAKAHdrBytes := make([]byte, 3) // RFC4187 8.1
+		eapAKAHdrBytes[0] =	1 // SubType AKA-Challenge
+		eapAKAHdr = string(eapAKAHdrBytes)
 		if atRandTmp, err := EapEncodeAttribute("AT_RAND", RAND); err != nil {
 			logger.Auth5gAkaComfirmLog.Warnf("EAP encode RAND failed: %+v", err)
 		} else {
@@ -249,11 +252,17 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 			atMAC = atMACTmp
 		}
 
-		dataArrayBeforeMAC := atRand + atAutn + atMAC + atKdf + atKdfInput
+		dataArrayBeforeMAC := eapAKAHdr + atRand + atAutn + atMAC + atKdf + atKdfInput
 		eapPkt.Data = []byte(dataArrayBeforeMAC)
 		encodedPktBeforeMAC := eapPkt.Encode()
 
-		MACvalue := CalculateAtMAC([]byte(K_aut), encodedPktBeforeMAC)
+		var K_autDecode []byte
+		if autDecode, err := hex.DecodeString(K_aut); err != nil {
+			logger.Auth5gAkaComfirmLog.Warnf("K_aut decode failed: %+v", err)
+		} else {
+			K_autDecode = autDecode
+		}
+		MACvalue := CalculateAtMAC(K_autDecode, encodedPktBeforeMAC)
 		atMacNum := fmt.Sprintf("%02x", ausf_context.AT_MAC_ATTRIBUTE)
 		var atMACfirstRow []byte
 		if atMACfirstRowTmp, err := hex.DecodeString(atMacNum + "05" + "0000"); err != nil {
@@ -264,7 +273,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		wholeAtMAC := append(atMACfirstRow, MACvalue...)
 
 		atMAC = string(wholeAtMAC)
-		dataArrayAfterMAC := atRand + atAutn + atMAC + atKdf + atKdfInput
+		dataArrayAfterMAC := eapAKAHdr + atRand + atAutn + atMAC + atKdf + atKdfInput
 
 		eapPkt.Data = []byte(dataArrayAfterMAC)
 		encodedPktAfterMAC := eapPkt.Encode()

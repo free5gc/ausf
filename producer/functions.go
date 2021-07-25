@@ -166,7 +166,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 		}
 
 		// Get result and encode as hexadecimal string
-		sha := string(h.Sum(nil))
+		sha := hex.EncodeToString(h.Sum(nil))
 		MK += sha
 		prev = []byte(sha)
 	}
@@ -190,7 +190,13 @@ func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn
 		copy(eapDecode.Data[offset+4:offset+20], zeroBytes)
 	}
 	encodeAfter := eapDecode.Encode()
-	MACvalue := CalculateAtMAC([]byte(Kautn), encodeAfter)
+	var KautnDecode []byte
+	if autnDecode, err := hex.DecodeString(Kautn); err != nil {
+		logger.EapAuthComfirmLog.Warnf("Kautn decode error: %+v", err)
+	} else {
+		KautnDecode = autnDecode
+	}
+	MACvalue := CalculateAtMAC(KautnDecode, encodeAfter)
 
 	if bytes.Equal(MACvalue, expectedMacValue) {
 		return true
