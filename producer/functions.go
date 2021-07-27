@@ -148,7 +148,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 	}
 	sBase := []byte("EAP-AKA'" + identity)
 
-	MK := ""
+	MK := []byte("")
 	prev := []byte("")
 	//_ = prev
 	prfRounds := 208/32 + 1
@@ -166,16 +166,16 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 		}
 
 		// Get result and encode as hexadecimal string
-		sha := hex.EncodeToString(h.Sum(nil))
-		MK += sha
-		prev = []byte(sha)
+		sha := h.Sum(nil)
+		MK = append(MK, sha...)
+		prev = sha
 	}
 
-	K_encr := MK[0:16]  // 0..127
-	K_aut := MK[16:48]  // 128..383
-	K_re := MK[48:80]   // 384..639
-	MSK := MK[80:144]   // 640..1151
-	EMSK := MK[144:208] // 1152..1663
+	K_encr := hex.EncodeToString(MK[0:16])  // 0..127
+	K_aut := hex.EncodeToString(MK[16:48])  // 128..383
+	K_re := hex.EncodeToString(MK[48:80])   // 384..639
+	MSK := hex.EncodeToString(MK[80:144])   // 640..1151
+	EMSK := hex.EncodeToString(MK[144:208]) // 1152..1663
 	return K_encr, K_aut, K_re, MSK, EMSK
 }
 
