@@ -111,7 +111,9 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		logger.UeAuthPostLog.Warningln(ausfCurrentSupi)
 		ausfCurrentContext := ausf_context.GetAusfUeContext(ausfCurrentSupi)
 		logger.UeAuthPostLog.Warningln(ausfCurrentContext.Rand)
-		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
+		if updateAuthenticationInfo.ResynchronizationInfo.Rand == "" {
+			updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
+		}
 		logger.UeAuthPostLog.Warningln("Rand: ", updateAuthenticationInfo.ResynchronizationInfo.Rand)
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 	}
