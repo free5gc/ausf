@@ -205,6 +205,124 @@ func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn
 	}
 }
 
+func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
+	var decodePkt ausf_context.EapAkaPrimePkt
+	var attrLen int
+	var decodeAttr ausf_context.EapAkaPrimeAttribute
+	attributes := make(map[uint8]ausf_context.EapAkaPrimeAttribute)
+	data := eapPkt[5:]
+	decodePkt.Subtype = data[0]
+	dataLen := len(data)
+
+	// decode attributes
+	for i := 3; i < dataLen; i += attrLen {
+		attrType := data[i]
+		attrLen = int(data[i+1]) * 4
+		if attrLen == 0 {
+			return nil, fmt.Errorf("attribute length equal to zero")
+		}
+		if i+attrLen > dataLen {
+			return nil, fmt.Errorf("packet length out of range")
+		}
+		switch attrType {
+		case ausf_context.AT_RES_ATTRIBUTE:
+			logger.EapAuthComfirmLog.Tracef("Decoding AT_RES\n")
+			accLen := int(data[i+3] >> 3)
+			if accLen > 16 || accLen < 4 || accLen+4 > attrLen {
+				return nil, fmt.Errorf("attribute AT_RES decode err")
+			}
+
+			decodeAttr.Type = attrType
+			decodeAttr.Length = data[i+1]
+			decodeAttr.Value = data[i+4 : i+4+accLen]
+			attributes[attrType] = decodeAttr
+		case ausf_context.AT_MAC_ATTRIBUTE:
+			logger.EapAuthComfirmLog.Tracef("Decoding AT_MAC\n")
+			if attrLen != 20 {
+				return nil, fmt.Errorf("attribute AT_MAC decode err")
+			}
+			decodeAttr.Type = attrType
+			decodeAttr.Length = data[i+1]
+			Mac := make([]byte, attrLen-4)
+			copy(Mac, data[i+4:i+attrLen])
+			decodeAttr.Value = Mac
+			attributes[attrType] = decodeAttr
+
+			// clean AT_MAC value for integrity check later
+			zeros := make([]byte, attrLen-4)
+			copy(data[i+4:i+attrLen], zeros)
+		case ausf_context.AT_KDF_ATTRIBUTE:
+			logger.EapAuthComfirmLog.Tracef("Decoding AT_KDF\n")
+			if attrLen != 4 {
+				return nil, fmt.Errorf("attribute AT_KDF decode err")
+			}
+			decodeAttr.Type = attrType
+			decodeAttr.Length = data[i+1]
+			decodeAttr.Value = data[i+2 : i+attrLen]
+			attributes[attrType] = decodeAttr
+		case ausf_context.AT_AUTS_ATTRIBUTE:
+			logger.EapAuthComfirmLog.Tracef("Decoding AT_AUTS\n")
+			if attrLen != 16 {
+				return nil, fmt.Errorf("attribute AT_AUTS decode err")
+			}
+			decodeAttr.Type = attrType
+			decodeAttr.Length = data[i+1]
+			decodeAttr.Value = data[i+2 : i+attrLen]
+			attributes[attrType] = decodeAttr
+		case ausf_context.AT_CLIENT_ERROR_CODE_ATTRIBUTE:
+			logger.EapAuthComfirmLog.Tracef("Decoding AT_CLIENT_ERROR_CODE\n")
+			if attrLen != 4 {
+				return nil, fmt.Errorf("attribute AT_CLIENT_ERROR_CODE decode err")
+			}
+			decodeAttr.Type = attrType
+			decodeAttr.Length = data[i+1]
+			decodeAttr.Value = data[i+2 : i+attrLen]
+			attributes[attrType] = decodeAttr
+		default:
+			logger.EapAuthComfirmLog.Tracef("attribute type %x skipped\n", attrType)
+		}
+	}
+
+	switch decodePkt.Subtype {
+	case ausf_context.AKA_CHALLENGE_SUBTYPE:
+		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Challenge\n")
+		if _, ok := attributes[ausf_context.AT_RES_ATTRIBUTE]; !ok {
+			return nil, fmt.Errorf("AKA-Challenge attributes error")
+		} else if _, ok := attributes[ausf_context.AT_MAC_ATTRIBUTE]; !ok {
+			return nil, fmt.Errorf("AKA-Challenge attributes error")
+		}
+	case ausf_context.AKA_AUTHENTICATION_REJECT_SUBTYPE:
+		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Authentication-Reject\n")
+		if len(attributes) != 0 {
+			return nil, fmt.Errorf("AKA-Authentication-Reject attributes error")
+		}
+	case ausf_context.AKA_SYNCHRONIZATION_FAILURE_SUBTYPE:
+		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Synchronization-Failure\n")
+		if len(attributes) != 2 {
+			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
+		} else if _, ok := attributes[ausf_context.AT_AUTS_ATTRIBUTE]; !ok {
+			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
+		} else if _, ok := attributes[ausf_context.AT_KDF_ATTRIBUTE]; !ok {
+			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
+		}
+	case ausf_context.AKA_NOTIFICATION_SUBTYPE:
+		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Notification\n")
+	case ausf_context.AKA_CLIENT_ERROR_SUBTYPE:
+		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Client-Error\n")
+		if len(attributes) != 1 {
+			return nil, fmt.Errorf("AKA-Client-Error attributes error")
+		} else if _, ok := attributes[ausf_context.AT_CLIENT_ERROR_CODE_ATTRIBUTE]; !ok {
+			return nil, fmt.Errorf("AKA-Client-Error attributes error")
+		}
+	default:
+		logger.EapAuthComfirmLog.Tracef("subtype %x skipped\n", decodePkt.Subtype)
+	}
+
+	decodePkt.Attributes = attributes
+
+	return &decodePkt, nil
+}
+
 // func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) (RES []byte, success bool) {
 func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, bool) {
 	detectRes := false

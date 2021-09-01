@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"bytes"
 
 	"github.com/bronze1man/radius"
 	"github.com/google/gopacket"
@@ -189,7 +190,14 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		logger.UeAuthPostLog.Infoln("Use EAP-AKA' auth method")
 		putLink += "/eap-session"
 
-		identity := ueid
+		var identity string
+		// 33.501 v15.9.0 or later
+		// TODO support more SUPI type
+		if ueid[:4] == "imsi" {
+			identity = ueid[5:]
+		}
+		// 33.501 v15.8.0 or earlier
+		// identity = ueid
 		ikPrime := authInfoResult.AuthenticationVector.IkPrime
 		ckPrime := authInfoResult.AuthenticationVector.CkPrime
 		RAND := authInfoResult.AuthenticationVector.Rand
@@ -201,8 +209,9 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 
 		K_encr, K_aut, K_re, MSK, EMSK := eapAkaPrimePrf(ikPrime, ckPrime, identity)
 		_, _, _, _, _ = K_encr, K_aut, K_re, MSK, EMSK
+		logger.Auth5gAkaComfirmLog.Tracef("K_aut: %s", K_aut)
 		ausfUeContext.K_aut = K_aut
-		Kausf := EMSK[0:32]
+		Kausf := EMSK[0:64]
 		ausfUeContext.Kausf = Kausf
 		var KausfDecode []byte
 		if ausfDecode, err := hex.DecodeString(Kausf); err != nil {
@@ -224,7 +233,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		eapPkt.Type = radius.EapType(50) // according to RFC5448 6.1
 		var eapAKAHdr, atRand, atAutn, atKdf, atKdfInput, atMAC string
 		eapAKAHdrBytes := make([]byte, 3) // RFC4187 8.1
-		eapAKAHdrBytes[0] =	1 // SubType AKA-Challenge
+		eapAKAHdrBytes[0] = 1             // SubType AKA-Challenge
 		eapAKAHdr = string(eapAKAHdrBytes)
 		if atRandTmp, err := EapEncodeAttribute("AT_RAND", RAND); err != nil {
 			logger.Auth5gAkaComfirmLog.Warnf("EAP encode RAND failed: %+v", err)
@@ -252,7 +261,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 			atMAC = atMACTmp
 		}
 
-		dataArrayBeforeMAC := eapAKAHdr + atRand + atAutn + atMAC + atKdf + atKdfInput
+		dataArrayBeforeMAC := eapAKAHdr + atRand + atAutn + atKdf + atKdfInput + atMAC
 		eapPkt.Data = []byte(dataArrayBeforeMAC)
 		encodedPktBeforeMAC := eapPkt.Encode()
 
@@ -273,7 +282,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		wholeAtMAC := append(atMACfirstRow, MACvalue...)
 
 		atMAC = string(wholeAtMAC)
-		dataArrayAfterMAC := eapAKAHdr + atRand + atAutn + atMAC + atKdf + atKdfInput
+		dataArrayAfterMAC := eapAKAHdr + atRand + atAutn + atKdf + atKdfInput + atMAC
 
 		eapPkt.Data = []byte(dataArrayAfterMAC)
 		encodedPktAfterMAC := eapPkt.Encode()
@@ -380,54 +389,95 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 	eapGoPkt := gopacket.NewPacket(eapPayload, layers.LayerTypeEAP, gopacket.Default)
 	eapLayer := eapGoPkt.Layer(layers.LayerTypeEAP)
 	eapContent, _ := eapLayer.(*layers.EAP)
+	eapOK := true
+	var eapErrStr string
 
 	if eapContent.Code != layers.EAPCodeResponse {
-		logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, servingNetworkName,
-			"eap packet code error", ausfCurrentContext.UdmUeauUrl)
+		eapOK = false
+		eapErrStr = "eap packet code error"
+	} else if eapContent.Type != ausf_context.EAP_AKA_PRIME_TYPENUM {
+		eapOK = false
+		eapErrStr = "eap packet type error"
+	} else if decodeEapAkaPrimePkt, err := decodeEapAkaPrime(eapContent.Contents); err != nil {
+		logger.Auth5gAkaComfirmLog.Warnf("EAP-AKA' decode failed: %+v", err)
+		eapOK = false
+		eapErrStr = "eap packet error"
+	} else {
+		switch decodeEapAkaPrimePkt.Subtype {
+		case ausf_context.AKA_CHALLENGE_SUBTYPE:
+			Kautn := ausfCurrentContext.K_aut
+			var KautnDecode []byte
+			if autnDecode, err := hex.DecodeString(Kautn); err != nil {
+				logger.EapAuthComfirmLog.Warnf("Kautn decode error: %+v", err)
+			} else {
+				KautnDecode = autnDecode
+			}
+			XMAC := CalculateAtMAC(KautnDecode, eapContent.Contents)
+			MAC := decodeEapAkaPrimePkt.Attributes[ausf_context.AT_MAC_ATTRIBUTE].Value
+			XRES := ausfCurrentContext.XRES
+			RES := hex.EncodeToString(decodeEapAkaPrimePkt.Attributes[ausf_context.AT_RES_ATTRIBUTE].Value)
+			if !bytes.Equal(MAC, XMAC) {
+				eapOK = false
+				eapErrStr = "EAP-AKA' integrity check fail"
+			} else if XRES == RES {
+				logger.EapAuthComfirmLog.Infoln("Correct RES value, EAP-AKA' auth succeed")
+				responseBody.KSeaf = ausfCurrentContext.Kseaf
+				responseBody.Supi = currentSupi
+				responseBody.AuthResult = models.AuthResult_SUCCESS
+				eapSuccPkt := ConstructEapNoTypePkt(radius.EapCodeSuccess, eapContent.Id)
+				responseBody.EapPayload = eapSuccPkt
+				udmUrl := ausfCurrentContext.UdmUeauUrl
+				if sendErr := sendAuthResultToUDM(
+					eapSessionID,
+					models.AuthType_EAP_AKA_PRIME,
+					true,
+					servingNetworkName,
+					udmUrl); sendErr != nil {
+					logger.EapAuthComfirmLog.Infoln(sendErr.Error())
+					var problemDetails models.ProblemDetails
+					problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
+					return nil, &problemDetails
+				}
+				ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
+			} else {
+				eapOK = false
+				eapErrStr = "Wrong RES value, EAP-AKA' auth failed"
+			}
+		case ausf_context.AKA_AUTHENTICATION_REJECT_SUBTYPE:
+			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+		case ausf_context.AKA_SYNCHRONIZATION_FAILURE_SUBTYPE:
+			var authInfo models.AuthenticationInfo
+			logger.Auth5gAkaComfirmLog.Warnf("EAP-AKA' synchronziation failure")
+			auts := decodeEapAkaPrimePkt.Attributes[ausf_context.AT_AUTS_ATTRIBUTE].Value
+			resynchronizationInfo := &models.ResynchronizationInfo{
+				Auts: hex.EncodeToString(auts[:]),
+			}
+			authInfo.SupiOrSuci = eapSessionID
+			authInfo.ServingNetworkName = servingNetworkName
+			authInfo.ResynchronizationInfo = resynchronizationInfo
+			response, _, problemDetails := UeAuthPostRequestProcedure(authInfo)
+			if problemDetails != nil {
+				return nil, problemDetails
+			}
+			responseBody.EapPayload = response.Var5gAuthData.(string)
+			responseBody.AuthResult = models.AuthResult_ONGOING
+		case ausf_context.AKA_NOTIFICATION_SUBTYPE:
+			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+		case ausf_context.AKA_CLIENT_ERROR_SUBTYPE:
+			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+		default:
+			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+		}
+	}
+
+	if !eapOK {
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_ONGOING
+		logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, servingNetworkName,
+			eapErrStr, ausfCurrentContext.UdmUeauUrl)
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 		responseBody.EapPayload = failEapAkaNoti
-		return &responseBody, nil
-	}
-	switch ausfCurrentContext.AuthStatus {
-	case models.AuthResult_ONGOING:
-		responseBody.KSeaf = ausfCurrentContext.Kseaf
-		responseBody.Supi = currentSupi
-		Kautn := ausfCurrentContext.K_aut
-		XRES := ausfCurrentContext.XRES
-		RES, decodeOK := decodeResMac(eapContent.TypeData, eapContent.Contents, Kautn)
-		if !decodeOK {
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
-			responseBody.AuthResult = models.AuthResult_ONGOING
-			logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, servingNetworkName,
-				"eap packet decode error", ausfCurrentContext.UdmUeauUrl)
-			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
-			responseBody.EapPayload = failEapAkaNoti
-		} else if XRES == string(RES) { // decodeOK && XRES == res, auth success
-			logger.EapAuthComfirmLog.Infoln("Correct RES value, EAP-AKA' auth succeed")
-			responseBody.AuthResult = models.AuthResult_SUCCESS
-			eapSuccPkt := ConstructEapNoTypePkt(radius.EapCodeSuccess, eapContent.Id)
-			responseBody.EapPayload = eapSuccPkt
-			udmUrl := ausfCurrentContext.UdmUeauUrl
-			if sendErr := sendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, true, servingNetworkName,
-				udmUrl); sendErr != nil {
-				logger.EapAuthComfirmLog.Infoln(sendErr.Error())
-				var problemDetails models.ProblemDetails
-				problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
-				return nil, &problemDetails
-			}
-			ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
-		} else {
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
-			responseBody.AuthResult = models.AuthResult_ONGOING
-			logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, servingNetworkName,
-				"Wrong RES value, EAP-AKA' auth failed", ausfCurrentContext.UdmUeauUrl)
-			failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
-			responseBody.EapPayload = failEapAkaNoti
-		}
-
-	case models.AuthResult_FAILURE:
+	} else if ausfCurrentContext.AuthStatus == models.AuthResult_FAILURE {
 		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, eapPayload[1])
 		responseBody.EapPayload = eapFailPkt
 		responseBody.AuthResult = models.AuthResult_FAILURE

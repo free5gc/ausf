@@ -47,20 +47,41 @@ type SuciSupiMap struct {
 	Supi       string
 }
 
+type EapAkaPrimeAttribute struct {
+	Type   uint8
+	Length uint8
+	Value  []byte
+}
+type EapAkaPrimePkt struct {
+	Subtype    uint8
+	Attributes map[uint8]EapAkaPrimeAttribute
+}
+
 const (
 	EAP_AKA_PRIME_TYPENUM = 50
 )
 
 // Attribute Types for EAP-AKA'
 const (
-	AT_RAND_ATTRIBUTE         = 1
-	AT_AUTN_ATTRIBUTE         = 2
-	AT_RES_ATTRIBUTE          = 3
-	AT_MAC_ATTRIBUTE          = 11
-	AT_NOTIFICATION_ATTRIBUTE = 12
-	AT_IDENTITY_ATTRIBUTE     = 14
-	AT_KDF_INPUT_ATTRIBUTE    = 23
-	AT_KDF_ATTRIBUTE          = 24
+	AT_RAND_ATTRIBUTE              = 1
+	AT_AUTN_ATTRIBUTE              = 2
+	AT_RES_ATTRIBUTE               = 3
+	AT_AUTS_ATTRIBUTE              = 4
+	AT_MAC_ATTRIBUTE               = 11
+	AT_NOTIFICATION_ATTRIBUTE      = 12
+	AT_IDENTITY_ATTRIBUTE          = 14
+	AT_CLIENT_ERROR_CODE_ATTRIBUTE = 22
+	AT_KDF_INPUT_ATTRIBUTE         = 23
+	AT_KDF_ATTRIBUTE               = 24
+)
+
+// Subtypes for EAP-AKA'
+const (
+	AKA_CHALLENGE_SUBTYPE               = 1
+	AKA_AUTHENTICATION_REJECT_SUBTYPE   = 2
+	AKA_SYNCHRONIZATION_FAILURE_SUBTYPE = 4
+	AKA_NOTIFICATION_SUBTYPE            = 12
+	AKA_CLIENT_ERROR_SUBTYPE            = 14
 )
 
 var ausfContext AUSFContext
