@@ -1,6 +1,7 @@
 package producer
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -10,7 +11,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"bytes"
 
 	"github.com/bronze1man/radius"
 	"github.com/google/gopacket"
