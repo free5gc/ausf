@@ -41,6 +41,7 @@ type AusfUeContext struct {
 	K_aut string
 	XRES  string
 	Rand  string
+	EapID uint8
 }
 
 type SuciSupiMap struct {

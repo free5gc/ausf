@@ -165,7 +165,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) ([]byte, []
 			logger.EapAuthComfirmLog.Errorln(err.Error())
 		}
 
-		// Get result and encode as hexadecimal string
+		// Get result
 		sha := h.Sum(nil)
 		MK = append(MK, sha...)
 		prev = sha
@@ -369,6 +369,10 @@ func ConstructFailEapAkaNotification(oldPktId uint8) string {
 	eapPkt.Code = radius.EapCodeRequest
 	eapPkt.Identifier = oldPktId + 1
 	eapPkt.Type = ausf_context.EAP_AKA_PRIME_TYPENUM
+
+	eapAkaHdrBytes := make([]byte, 3)
+	eapAkaHdrBytes[0] = ausf_context.AKA_NOTIFICATION_SUBTYPE
+
 	attrNum := fmt.Sprintf("%02x", ausf_context.AT_NOTIFICATION_ATTRIBUTE)
 	attribute := attrNum + "01" + "4000"
 	var attrHex []byte
@@ -377,7 +381,8 @@ func ConstructFailEapAkaNotification(oldPktId uint8) string {
 	} else {
 		attrHex = attrHexTmp
 	}
-	eapPkt.Data = attrHex
+
+	eapPkt.Data = append(eapAkaHdrBytes, attrHex...)
 	eapPktEncode := eapPkt.Encode()
 	return base64.StdEncoding.EncodeToString(eapPktEncode)
 }

@@ -105,6 +105,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	self := ausf_context.GetSelf()
 	authInfoReq.AusfInstanceId = self.GetSelfID()
 
+	var lastEapID uint8
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {
 		logger.UeAuthPostLog.Warningln("Auts: ", updateAuthenticationInfo.ResynchronizationInfo.Auts)
 		ausfCurrentSupi := ausf_context.GetSupiFromSuciSupiMap(supiOrSuci)
@@ -114,6 +115,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
 		logger.UeAuthPostLog.Warningln("Rand: ", updateAuthenticationInfo.ResynchronizationInfo.Rand)
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
+		lastEapID = ausfCurrentContext.EapID
 	}
 
 	udmUrl := getUdmUrl(self.NrfUri)
@@ -219,13 +221,17 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		ausfUeContext.Kseaf = hex.EncodeToString(Kseaf)
 
 		var eapPkt radius.EapPacket
-		var randIdentifier int
-		rand.Seed(time.Now().Unix())
-
 		eapPkt.Code = radius.EapCode(1)
-		randIdentifier = rand.Intn(256)
-		eapPkt.Identifier = uint8(randIdentifier)
+		if updateAuthenticationInfo.ResynchronizationInfo == nil {
+			rand.Seed(time.Now().Unix())
+			randIdentifier := rand.Intn(256)
+			ausfUeContext.EapID = uint8(randIdentifier)
+		} else {
+			ausfUeContext.EapID = lastEapID + 1
+		}
+		eapPkt.Identifier = ausfUeContext.EapID
 		eapPkt.Type = radius.EapType(50) // according to RFC5448 6.1
+
 		var eapAKAHdr, atRand, atAutn, atKdf, atKdfInput, atMAC string
 		eapAKAHdrBytes := make([]byte, 3) // RFC4187 8.1
 		eapAKAHdrBytes[0] = ausf_context.AKA_CHALLENGE_SUBTYPE
