@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -210,20 +209,13 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 
 		ausfUeContext.Rand = authInfoResult.AuthenticationVector.Rand
 
-		K_encr, K_aut, K_re, MSK, EMSK := eapAkaPrimePrf(ikPrime, ckPrime, identity)
-		_, _, _, _, _ = K_encr, K_aut, K_re, MSK, EMSK
-		logger.Auth5gAkaComfirmLog.Tracef("K_aut: %s", K_aut)
-		ausfUeContext.K_aut = K_aut
-		Kausf := EMSK[0:64]
-		ausfUeContext.Kausf = Kausf
-		var KausfDecode []byte
-		if ausfDecode, err := hex.DecodeString(Kausf); err != nil {
-			logger.Auth5gAkaComfirmLog.Warnf("AUSF decode failed: %+v", err)
-		} else {
-			KausfDecode = ausfDecode
-		}
+		_, K_aut, _, _, EMSK := eapAkaPrimePrf(ikPrime, ckPrime, identity)
+		logger.Auth5gAkaComfirmLog.Tracef("K_aut: %x", K_aut)
+		ausfUeContext.K_aut = hex.EncodeToString(K_aut)
+		Kausf := EMSK[0:32]
+		ausfUeContext.Kausf = hex.EncodeToString(Kausf)
 		P0 := []byte(snName)
-		Kseaf := UeauCommon.GetKDFValue(KausfDecode, UeauCommon.FC_FOR_KSEAF_DERIVATION, P0, UeauCommon.KDFLen(P0))
+		Kseaf := UeauCommon.GetKDFValue(Kausf, UeauCommon.FC_FOR_KSEAF_DERIVATION, P0, UeauCommon.KDFLen(P0))
 		ausfUeContext.Kseaf = hex.EncodeToString(Kseaf)
 
 		var eapPkt radius.EapPacket
@@ -236,7 +228,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		eapPkt.Type = radius.EapType(50) // according to RFC5448 6.1
 		var eapAKAHdr, atRand, atAutn, atKdf, atKdfInput, atMAC string
 		eapAKAHdrBytes := make([]byte, 3) // RFC4187 8.1
-		eapAKAHdrBytes[0] = 1             // SubType AKA-Challenge
+		eapAKAHdrBytes[0] = ausf_context.AKA_CHALLENGE_SUBTYPE
 		eapAKAHdr = string(eapAKAHdrBytes)
 		if atRandTmp, err := EapEncodeAttribute("AT_RAND", RAND); err != nil {
 			logger.Auth5gAkaComfirmLog.Warnf("EAP encode RAND failed: %+v", err)
@@ -268,23 +260,9 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		eapPkt.Data = []byte(dataArrayBeforeMAC)
 		encodedPktBeforeMAC := eapPkt.Encode()
 
-		var K_autDecode []byte
-		if autDecode, err := hex.DecodeString(K_aut); err != nil {
-			logger.Auth5gAkaComfirmLog.Warnf("K_aut decode failed: %+v", err)
-		} else {
-			K_autDecode = autDecode
-		}
-		MACvalue := CalculateAtMAC(K_autDecode, encodedPktBeforeMAC)
-		atMacNum := fmt.Sprintf("%02x", ausf_context.AT_MAC_ATTRIBUTE)
-		var atMACfirstRow []byte
-		if atMACfirstRowTmp, err := hex.DecodeString(atMacNum + "05" + "0000"); err != nil {
-			logger.Auth5gAkaComfirmLog.Warnf("MAC decode failed: %+v", err)
-		} else {
-			atMACfirstRow = atMACfirstRowTmp
-		}
-		wholeAtMAC := append(atMACfirstRow, MACvalue...)
+		MacValue := CalculateAtMAC(K_aut, encodedPktBeforeMAC)
+		atMAC = atMAC[:4] + string(MacValue)
 
-		atMAC = string(wholeAtMAC)
 		dataArrayAfterMAC := eapAKAHdr + atRand + atAutn + atKdf + atKdfInput + atMAC
 
 		eapPkt.Data = []byte(dataArrayAfterMAC)
@@ -408,17 +386,18 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 	} else {
 		switch decodeEapAkaPrimePkt.Subtype {
 		case ausf_context.AKA_CHALLENGE_SUBTYPE:
-			Kautn := ausfCurrentContext.K_aut
-			var KautnDecode []byte
-			if autnDecode, err := hex.DecodeString(Kautn); err != nil {
-				logger.EapAuthComfirmLog.Warnf("Kautn decode error: %+v", err)
+			K_autStr := ausfCurrentContext.K_aut
+			var K_aut []byte
+			if K_autTmp, err := hex.DecodeString(K_autStr); err != nil {
+				logger.EapAuthComfirmLog.Warnf("K_aut decode error: %+v", err)
 			} else {
-				KautnDecode = autnDecode
+				K_aut = K_autTmp
 			}
-			XMAC := CalculateAtMAC(KautnDecode, eapContent.Contents)
+			XMAC := CalculateAtMAC(K_aut, eapContent.Contents)
 			MAC := decodeEapAkaPrimePkt.Attributes[ausf_context.AT_MAC_ATTRIBUTE].Value
 			XRES := ausfCurrentContext.XRES
 			RES := hex.EncodeToString(decodeEapAkaPrimePkt.Attributes[ausf_context.AT_RES_ATTRIBUTE].Value)
+
 			if !bytes.Equal(MAC, XMAC) {
 				eapOK = false
 				eapErrStr = "EAP-AKA' integrity check fail"
@@ -449,11 +428,12 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 		case ausf_context.AKA_AUTHENTICATION_REJECT_SUBTYPE:
 			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		case ausf_context.AKA_SYNCHRONIZATION_FAILURE_SUBTYPE:
-			var authInfo models.AuthenticationInfo
 			logger.Auth5gAkaComfirmLog.Warnf("EAP-AKA' synchronziation failure")
-			auts := decodeEapAkaPrimePkt.Attributes[ausf_context.AT_AUTS_ATTRIBUTE].Value
+
+			var authInfo models.AuthenticationInfo
+			AUTS := decodeEapAkaPrimePkt.Attributes[ausf_context.AT_AUTS_ATTRIBUTE].Value
 			resynchronizationInfo := &models.ResynchronizationInfo{
-				Auts: hex.EncodeToString(auts[:]),
+				Auts: hex.EncodeToString(AUTS[:]),
 			}
 			authInfo.SupiOrSuci = eapSessionID
 			authInfo.ServingNetworkName = servingNetworkName
@@ -462,6 +442,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 			if problemDetails != nil {
 				return nil, problemDetails
 			}
+
 			responseBody.EapPayload = response.Var5gAuthData.(string)
 			responseBody.AuthResult = models.AuthResult_ONGOING
 		case ausf_context.AKA_NOTIFICATION_SUBTYPE:

@@ -59,8 +59,8 @@ func CalculateAtMAC(key []byte, input []byte) []byte {
 	if _, err := h.Write(input); err != nil {
 		logger.EapAuthComfirmLog.Errorln(err.Error())
 	}
-	sha := string(h.Sum(nil))
-	return []byte(sha[:16])
+	sum := h.Sum(nil)
+	return sum[:16]
 }
 
 // func EapEncodeAttribute(attributeType string, data string) (returnStr string, err error) {
@@ -137,7 +137,7 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 
 // func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (K_encr string, K_aut string, K_re string,
 //    MSK string, EMSK string) {
-func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, string, string, string, string) {
+func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) ([]byte, []byte, []byte, []byte, []byte) {
 	keyAp := ikPrime + ckPrime
 
 	var key []byte
@@ -171,11 +171,11 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 		prev = sha
 	}
 
-	K_encr := hex.EncodeToString(MK[0:16])  // 0..127
-	K_aut := hex.EncodeToString(MK[16:48])  // 128..383
-	K_re := hex.EncodeToString(MK[48:80])   // 384..639
-	MSK := hex.EncodeToString(MK[80:144])   // 640..1151
-	EMSK := hex.EncodeToString(MK[144:208]) // 1152..1663
+	K_encr := MK[0:16]  // 0..127
+	K_aut := MK[16:48]  // 128..383
+	K_re := MK[48:80]   // 384..639
+	MSK := MK[80:144]   // 640..1151
+	EMSK := MK[144:208] // 1152..1663
 	return K_encr, K_aut, K_re, MSK, EMSK
 }
 

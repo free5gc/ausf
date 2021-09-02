@@ -27,7 +27,7 @@ type testEapAkaPrimeCase struct {
 	EMSK        string `json:"EMSK"`
 }
 
-func EapAkaPrimeKeyGenAll(data testEapAkaPrimeCase) (string, string, string, string, string, string, string) {
+func EapAkaPrimeKeyGenAll(data testEapAkaPrimeCase) ([]byte, []byte, []byte, []byte, []byte, []byte, []byte) {
 	CK, _ := hex.DecodeString(data.CK)
 	IK, _ := hex.DecodeString(data.IK)
 	AUTN, _ := hex.DecodeString(data.AUTN)
@@ -39,11 +39,13 @@ func EapAkaPrimeKeyGenAll(data testEapAkaPrimeCase) (string, string, string, str
 
 	// Generate CK' IK'
 	kdfVal := UeauCommon.GetKDFValue(key, FC, P0, UeauCommon.KDFLen(P0), P1, UeauCommon.KDFLen(P1))
-	CKPrime := hex.EncodeToString(kdfVal[:len(kdfVal)/2])
-	IKPrime := hex.EncodeToString(kdfVal[len(kdfVal)/2:])
+	CKPrime := kdfVal[:len(kdfVal)/2]
+	IKPrime := kdfVal[len(kdfVal)/2:]
+	CKPrimeHex := hex.EncodeToString(CKPrime)
+	IKPrimeHex := hex.EncodeToString(IKPrime)
 
 	// Generate K_encr K_aut K_re MSK EMSK
-	K_encr, K_aut, K_re, MSK, EMSK := eapAkaPrimePrf(IKPrime, CKPrime, data.Identity)
+	K_encr, K_aut, K_re, MSK, EMSK := eapAkaPrimePrf(IKPrimeHex, CKPrimeHex, data.Identity)
 	return CKPrime, IKPrime, K_encr, K_aut, K_re, MSK, EMSK
 }
 
@@ -118,13 +120,13 @@ func TestEapAkaPrimeKeyGen(t *testing.T) {
 
 	for idx, testData := range testCases {
 		CKPrime, IKPrime, K_encr, K_aut, K_re, MSK, EMSK := EapAkaPrimeKeyGenAll(testData)
-		assert.True(t, testData.IKPrime == IKPrime)
-		assert.True(t, testData.CKPrime == CKPrime)
-		assert.True(t, testData.K_encr == K_encr)
-		assert.True(t, testData.K_aut == K_aut)
-		assert.True(t, testData.K_re == K_re)
-		assert.True(t, testData.MSK == MSK)
-		assert.True(t, testData.EMSK == EMSK)
+		assert.True(t, testData.IKPrime == hex.EncodeToString(IKPrime))
+		assert.True(t, testData.CKPrime == hex.EncodeToString(CKPrime))
+		assert.True(t, testData.K_encr == hex.EncodeToString(K_encr))
+		assert.True(t, testData.K_aut == hex.EncodeToString(K_aut))
+		assert.True(t, testData.K_re == hex.EncodeToString(K_re))
+		assert.True(t, testData.MSK == hex.EncodeToString(MSK))
+		assert.True(t, testData.EMSK == hex.EncodeToString(EMSK))
 		fmt.Printf("Pass case %d\n", idx+1)
 	}
 }
