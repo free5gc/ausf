@@ -31,11 +31,12 @@ const (
 )
 
 type Configuration struct {
-	Sbi             *Sbi            `yaml:"sbi,omitempty"`
-	ServiceNameList []string        `yaml:"serviceNameList,omitempty"`
-	NrfUri          string          `yaml:"nrfUri,omitempty"`
-	PlmnSupportList []models.PlmnId `yaml:"plmnSupportList,omitempty"`
-	GroupId         string          `yaml:"groupId,omitempty"`
+	Sbi                  *Sbi            `yaml:"sbi,omitempty"`
+	ServiceNameList      []string        `yaml:"serviceNameList,omitempty"`
+	NrfUri               string          `yaml:"nrfUri,omitempty"`
+	PlmnSupportList      []models.PlmnId `yaml:"plmnSupportList,omitempty"`
+	GroupId              string          `yaml:"groupId,omitempty"`
+	EapAkaSupiImsiPrefix bool            `yaml:"eapAkaSupiImsiPrefix,omitempty"`
 }
 
 type Sbi struct {

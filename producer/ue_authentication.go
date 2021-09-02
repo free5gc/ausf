@@ -191,13 +191,16 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		putLink += "/eap-session"
 
 		var identity string
-		// 33.501 v15.9.0 or later
 		// TODO support more SUPI type
 		if ueid[:4] == "imsi" {
-			identity = ueid[5:]
+			if !self.EapAkaSupiImsiPrefix {
+				// 33.501 v15.9.0 or later
+				identity = ueid[5:]
+			} else {
+				// 33.501 v15.8.0 or earlier
+				identity = ueid
+			}
 		}
-		// 33.501 v15.8.0 or earlier
-		// identity = ueid
 		ikPrime := authInfoResult.AuthenticationVector.IkPrime
 		ckPrime := authInfoResult.AuthenticationVector.CkPrime
 		RAND := authInfoResult.AuthenticationVector.Rand

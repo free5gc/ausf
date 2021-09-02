@@ -9,20 +9,21 @@ import (
 )
 
 type AUSFContext struct {
-	suciSupiMap  sync.Map
-	UePool       sync.Map
-	NfId         string
-	GroupID      string
-	SBIPort      int
-	RegisterIPv4 string
-	BindingIPv4  string
-	Url          string
-	UriScheme    models.UriScheme
-	NrfUri       string
-	NfService    map[models.ServiceName]models.NfService
-	PlmnList     []models.PlmnId
-	UdmUeauUrl   string
-	snRegex      *regexp.Regexp
+	suciSupiMap          sync.Map
+	UePool               sync.Map
+	NfId                 string
+	GroupID              string
+	SBIPort              int
+	RegisterIPv4         string
+	BindingIPv4          string
+	Url                  string
+	UriScheme            models.UriScheme
+	NrfUri               string
+	NfService            map[models.ServiceName]models.NfService
+	PlmnList             []models.PlmnId
+	UdmUeauUrl           string
+	snRegex              *regexp.Regexp
+	EapAkaSupiImsiPrefix bool
 }
 
 type AusfUeContext struct {
