@@ -112,7 +112,9 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		logger.UeAuthPostLog.Warningln(ausfCurrentSupi)
 		ausfCurrentContext := ausf_context.GetAusfUeContext(ausfCurrentSupi)
 		logger.UeAuthPostLog.Warningln(ausfCurrentContext.Rand)
-		updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
+		if updateAuthenticationInfo.ResynchronizationInfo.Rand == "" {
+			updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
+		}
 		logger.UeAuthPostLog.Warningln("Rand: ", updateAuthenticationInfo.ResynchronizationInfo.Rand)
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 		lastEapID = ausfCurrentContext.EapID
@@ -185,8 +187,11 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		av5gAka.Rand = authInfoResult.AuthenticationVector.Rand
 		av5gAka.Autn = authInfoResult.AuthenticationVector.Autn
 		av5gAka.HxresStar = hxresStar
-
 		responseBody.Var5gAuthData = av5gAka
+
+		linksValue := models.LinksValueSchema{Href: putLink}
+		responseBody.Links = make(map[string]models.LinksValueSchema)
+		responseBody.Links["5g-aka"] = linksValue
 	} else if authInfoResult.AuthType == models.AuthType_EAP_AKA_PRIME {
 		logger.UeAuthPostLog.Infoln("Use EAP-AKA' auth method")
 		putLink += "/eap-session"
@@ -274,11 +279,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		eapPkt.Data = []byte(dataArrayAfterMAC)
 		encodedPktAfterMAC := eapPkt.Encode()
 		responseBody.Var5gAuthData = base64.StdEncoding.EncodeToString(encodedPktAfterMAC)
+
+		linksValue := models.LinksValueSchema{Href: putLink}
+		responseBody.Links = make(map[string]models.LinksValueSchema)
+		responseBody.Links["eap-session"] = linksValue
 	}
 
-	linksValue := models.LinksValueSchema{Href: putLink}
-	responseBody.Links = make(map[string]models.LinksValueSchema)
-	responseBody.Links["link"] = linksValue
 	responseBody.AuthType = authInfoResult.AuthType
 
 	return &responseBody, locationURI, nil

@@ -156,8 +156,8 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) ([]byte, []
 		// Create a new HMAC by defining the hash type and the key (as byte array)
 		h := hmac.New(sha256.New, key)
 
-		hexNum := string(i + 1)
-		ap := append(sBase, hexNum...)
+		hexNum := (byte)(i + 1)
+		ap := append(sBase, hexNum)
 		s := append(prev, ap...)
 
 		// Write Data to it
