@@ -304,6 +304,8 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
 		} else if _, ok := attributes[ausf_context.AT_KDF_ATTRIBUTE]; !ok {
 			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
+		} else if kdfVal := attributes[ausf_context.AT_KDF_ATTRIBUTE].Value; !(kdfVal[0] == 0 && kdfVal[1] == 1) {
+			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
 		}
 	case ausf_context.AKA_NOTIFICATION_SUBTYPE:
 		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Notification\n")
