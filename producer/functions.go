@@ -427,11 +427,14 @@ func sendAuthResultToUDM(id string, authType models.AuthType, success bool, serv
 	timeNow := time.Now()
 	timePtr := &timeNow
 
+	self := ausf_context.GetSelf()
+
 	var authEvent models.AuthEvent
 	authEvent.TimeStamp = timePtr
 	authEvent.AuthType = authType
 	authEvent.Success = success
 	authEvent.ServingNetworkName = servingNetworkName
+	authEvent.NfInstanceId = self.GetSelfID()
 
 	client := createClientToUdmUeau(udmUrl)
 	_, _, confirmAuthErr := client.ConfirmAuthApi.ConfirmAuth(context.Background(), id, authEvent)

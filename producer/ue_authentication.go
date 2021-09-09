@@ -456,6 +456,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 			}
 
 			responseBody.EapPayload = response.Var5gAuthData.(string)
+			responseBody.Links = response.Links
 			responseBody.AuthResult = models.AuthResult_ONGOING
 		case ausf_context.AKA_NOTIFICATION_SUBTYPE:
 			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
@@ -467,12 +468,18 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 	}
 
 	if !eapOK {
+		logger.Auth5gAkaComfirmLog.Warnf("EAP-AKA' failure: %s", eapErrStr)
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_ONGOING
 		logConfirmFailureAndInformUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, servingNetworkName,
 			eapErrStr, ausfCurrentContext.UdmUeauUrl)
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 		responseBody.EapPayload = failEapAkaNoti
+		self := ausf_context.GetSelf()
+		linkUrl := self.Url + "/nausf-auth/v1/ue-authentications/" + eapSessionID + "/eap-session"
+		linksValue := models.LinksValueSchema{Href: linkUrl}
+		responseBody.Links = make(map[string]models.LinksValueSchema)
+		responseBody.Links["eap-session"] = linksValue
 	} else if ausfCurrentContext.AuthStatus == models.AuthResult_FAILURE {
 		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, eapPayload[1])
 		responseBody.EapPayload = eapFailPkt
