@@ -1,7 +1,6 @@
 package producer
 
 import (
-	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -179,32 +178,6 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) ([]byte, []
 	return K_encr, K_aut, K_re, MSK, EMSK
 }
 
-func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn string) bool {
-	eapDecode, decodeErr := radius.EapDecode(packet)
-	if decodeErr != nil {
-		logger.EapAuthComfirmLog.Infoln(decodeErr.Error())
-	}
-	if zeroBytes, err := hex.DecodeString("00000000000000000000000000000000"); err != nil {
-		logger.EapAuthComfirmLog.Warnf("Decode error: %+v", err)
-	} else {
-		copy(eapDecode.Data[offset+4:offset+20], zeroBytes)
-	}
-	encodeAfter := eapDecode.Encode()
-	var KautnDecode []byte
-	if autnDecode, err := hex.DecodeString(Kautn); err != nil {
-		logger.EapAuthComfirmLog.Warnf("Kautn decode error: %+v", err)
-	} else {
-		KautnDecode = autnDecode
-	}
-	MACvalue := CalculateAtMAC(KautnDecode, encodeAfter)
-
-	if bytes.Equal(MACvalue, expectedMacValue) {
-		return true
-	} else {
-		return false
-	}
-}
-
 func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 	var decodePkt ausf_context.EapAkaPrimePkt
 	var attrLen int
@@ -323,47 +296,6 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 	decodePkt.Attributes = attributes
 
 	return &decodePkt, nil
-}
-
-// func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) (RES []byte, success bool) {
-func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, bool) {
-	detectRes := false
-	detectMac := false
-	macCorrect := false
-	dataArray := packetData
-	var attributeLength int
-	var attributeType int
-	var RES []byte
-
-	for i := 0; i < len(dataArray); i += attributeLength {
-		attributeLength = int(uint(dataArray[1+i])) * 4
-		attributeType = int(uint(dataArray[0+i]))
-
-		if attributeType == ausf_context.AT_RES_ATTRIBUTE {
-			logger.EapAuthComfirmLog.Infoln("Detect AT_RES attribute")
-			detectRes = true
-			resLength := int(uint(dataArray[3+i]) | uint(dataArray[2+i])<<8)
-			RES = dataArray[4+i : 4+i+attributeLength-4]
-			byteRes := padZeros(RES, resLength)
-			RES = byteRes
-		} else if attributeType == ausf_context.AT_MAC_ATTRIBUTE {
-			logger.EapAuthComfirmLog.Infoln("Detect AT_MAC attribute")
-			detectMac = true
-			macStr := string(dataArray[4+i : 20+i])
-			if checkMACintegrity(i, []byte(macStr), wholePacket, Kautn) {
-				logger.EapAuthComfirmLog.Infoln("check MAC integrity succeed")
-				macCorrect = true
-			} else {
-				logger.EapAuthComfirmLog.Infoln("check MAC integrity failed")
-			}
-		} else {
-			logger.EapAuthComfirmLog.Infof("Detect unknown attribute with type %d\n", attributeType)
-		}
-	}
-	if detectRes && detectMac && macCorrect {
-		return RES, true
-	}
-	return nil, false
 }
 
 func ConstructFailEapAkaNotification(oldPktId uint8) string {
