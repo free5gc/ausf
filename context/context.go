@@ -54,6 +54,7 @@ type EapAkaPrimeAttribute struct {
 	Length uint8
 	Value  []byte
 }
+
 type EapAkaPrimePkt struct {
 	Subtype    uint8
 	Attributes map[uint8]EapAkaPrimeAttribute
