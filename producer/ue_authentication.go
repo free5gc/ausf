@@ -374,16 +374,6 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 	servingNetworkName := ausfCurrentContext.ServingNetworkName
 
 	if ausfCurrentContext.AuthStatus == models.AuthResult_FAILURE {
-		if sendErr := sendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, false, servingNetworkName,
-			ausfCurrentContext.UdmUeauUrl); sendErr != nil {
-			logger.EapAuthComfirmLog.Infoln(sendErr.Error())
-			var problemDetails models.ProblemDetails
-			problemDetails.Status = http.StatusInternalServerError
-			problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
-
-			return nil, &problemDetails
-		}
-
 		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, 0)
 		responseBody.EapPayload = eapFailPkt
 		responseBody.AuthResult = models.AuthResult_FAILURE
@@ -423,7 +413,7 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 			} else {
 				K_aut = K_autTmp
 			}
-			XMAC := CalculateAtMAC(K_aut, eapContent.Contents)
+			XMAC := CalculateAtMAC(K_aut, decodeEapAkaPrimePkt.MACInput)
 			MAC := decodeEapAkaPrimePkt.Attributes[ausf_context.AT_MAC_ATTRIBUTE].Value
 			XRES := ausfCurrentContext.XRES
 			RES := hex.EncodeToString(decodeEapAkaPrimePkt.Attributes[ausf_context.AT_RES_ATTRIBUTE].Value)
@@ -459,23 +449,28 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		case ausf_context.AKA_SYNCHRONIZATION_FAILURE_SUBTYPE:
 			logger.EapAuthComfirmLog.Warnf("EAP-AKA' synchronziation failure")
+			if ausfCurrentContext.Resynced {
+				eapOK = false
+				eapErrStr = "2 consecutive Synch Failure, terminate authentication procedure"
+			} else {
+				var authInfo models.AuthenticationInfo
+				AUTS := decodeEapAkaPrimePkt.Attributes[ausf_context.AT_AUTS_ATTRIBUTE].Value
+				resynchronizationInfo := &models.ResynchronizationInfo{
+					Auts: hex.EncodeToString(AUTS[:]),
+				}
+				authInfo.SupiOrSuci = eapSessionID
+				authInfo.ServingNetworkName = servingNetworkName
+				authInfo.ResynchronizationInfo = resynchronizationInfo
+				response, _, problemDetails := UeAuthPostRequestProcedure(authInfo)
+				if problemDetails != nil {
+					return nil, problemDetails
+				}
+				ausfCurrentContext.Resynced = true
 
-			var authInfo models.AuthenticationInfo
-			AUTS := decodeEapAkaPrimePkt.Attributes[ausf_context.AT_AUTS_ATTRIBUTE].Value
-			resynchronizationInfo := &models.ResynchronizationInfo{
-				Auts: hex.EncodeToString(AUTS[:]),
+				responseBody.EapPayload = response.Var5gAuthData.(string)
+				responseBody.Links = response.Links
+				responseBody.AuthResult = models.AuthResult_ONGOING
 			}
-			authInfo.SupiOrSuci = eapSessionID
-			authInfo.ServingNetworkName = servingNetworkName
-			authInfo.ResynchronizationInfo = resynchronizationInfo
-			response, _, problemDetails := UeAuthPostRequestProcedure(authInfo)
-			if problemDetails != nil {
-				return nil, problemDetails
-			}
-
-			responseBody.EapPayload = response.Var5gAuthData.(string)
-			responseBody.Links = response.Links
-			responseBody.AuthResult = models.AuthResult_ONGOING
 		case ausf_context.AKA_NOTIFICATION_SUBTYPE:
 			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		case ausf_context.AKA_CLIENT_ERROR_SUBTYPE:
@@ -488,6 +483,16 @@ func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessi
 
 	if !eapOK {
 		logger.EapAuthComfirmLog.Warnf("EAP-AKA' failure: %s", eapErrStr)
+		if sendErr := sendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, false, servingNetworkName,
+			ausfCurrentContext.UdmUeauUrl); sendErr != nil {
+			logger.EapAuthComfirmLog.Infoln(sendErr.Error())
+			var problemDetails models.ProblemDetails
+			problemDetails.Status = http.StatusInternalServerError
+			problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
+
+			return nil, &problemDetails
+		}
+
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_ONGOING
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)

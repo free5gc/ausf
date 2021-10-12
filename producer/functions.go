@@ -224,6 +224,7 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 			// clean AT_MAC value for integrity check later
 			zeros := make([]byte, attrLen-4)
 			copy(data[i+4:i+attrLen], zeros)
+			decodePkt.MACInput = eapPkt
 		case ausf_context.AT_KDF_ATTRIBUTE:
 			logger.EapAuthComfirmLog.Tracef("Decoding AT_KDF\n")
 			if attrLen != 4 {

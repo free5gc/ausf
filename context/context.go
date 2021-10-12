@@ -38,10 +38,11 @@ type AusfUeContext struct {
 	XresStar string
 
 	// for EAP-AKA'
-	K_aut string
-	XRES  string
-	Rand  string
-	EapID uint8
+	K_aut    string
+	XRES     string
+	Rand     string
+	EapID    uint8
+	Resynced bool
 }
 
 type SuciSupiMap struct {
@@ -58,6 +59,7 @@ type EapAkaPrimeAttribute struct {
 type EapAkaPrimePkt struct {
 	Subtype    uint8
 	Attributes map[uint8]EapAkaPrimeAttribute
+	MACInput   []byte
 }
 
 const (
