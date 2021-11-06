@@ -9,20 +9,21 @@ import (
 )
 
 type AUSFContext struct {
-	suciSupiMap  sync.Map
-	UePool       sync.Map
-	NfId         string
-	GroupID      string
-	SBIPort      int
-	RegisterIPv4 string
-	BindingIPv4  string
-	Url          string
-	UriScheme    models.UriScheme
-	NrfUri       string
-	NfService    map[models.ServiceName]models.NfService
-	PlmnList     []models.PlmnId
-	UdmUeauUrl   string
-	snRegex      *regexp.Regexp
+	suciSupiMap          sync.Map
+	UePool               sync.Map
+	NfId                 string
+	GroupID              string
+	SBIPort              int
+	RegisterIPv4         string
+	BindingIPv4          string
+	Url                  string
+	UriScheme            models.UriScheme
+	NrfUri               string
+	NfService            map[models.ServiceName]models.NfService
+	PlmnList             []models.PlmnId
+	UdmUeauUrl           string
+	snRegex              *regexp.Regexp
+	EapAkaSupiImsiPrefix bool
 }
 
 type AusfUeContext struct {
@@ -37,14 +38,28 @@ type AusfUeContext struct {
 	XresStar string
 
 	// for EAP-AKA'
-	K_aut string
-	XRES  string
-	Rand  string
+	K_aut    string
+	XRES     string
+	Rand     string
+	EapID    uint8
+	Resynced bool
 }
 
 type SuciSupiMap struct {
 	SupiOrSuci string
 	Supi       string
+}
+
+type EapAkaPrimeAttribute struct {
+	Type   uint8
+	Length uint8
+	Value  []byte
+}
+
+type EapAkaPrimePkt struct {
+	Subtype    uint8
+	Attributes map[uint8]EapAkaPrimeAttribute
+	MACInput   []byte
 }
 
 const (
@@ -53,14 +68,25 @@ const (
 
 // Attribute Types for EAP-AKA'
 const (
-	AT_RAND_ATTRIBUTE         = 1
-	AT_AUTN_ATTRIBUTE         = 2
-	AT_RES_ATTRIBUTE          = 3
-	AT_MAC_ATTRIBUTE          = 11
-	AT_NOTIFICATION_ATTRIBUTE = 12
-	AT_IDENTITY_ATTRIBUTE     = 14
-	AT_KDF_INPUT_ATTRIBUTE    = 23
-	AT_KDF_ATTRIBUTE          = 24
+	AT_RAND_ATTRIBUTE              = 1
+	AT_AUTN_ATTRIBUTE              = 2
+	AT_RES_ATTRIBUTE               = 3
+	AT_AUTS_ATTRIBUTE              = 4
+	AT_MAC_ATTRIBUTE               = 11
+	AT_NOTIFICATION_ATTRIBUTE      = 12
+	AT_IDENTITY_ATTRIBUTE          = 14
+	AT_CLIENT_ERROR_CODE_ATTRIBUTE = 22
+	AT_KDF_INPUT_ATTRIBUTE         = 23
+	AT_KDF_ATTRIBUTE               = 24
+)
+
+// Subtypes for EAP-AKA'
+const (
+	AKA_CHALLENGE_SUBTYPE               = 1
+	AKA_AUTHENTICATION_REJECT_SUBTYPE   = 2
+	AKA_SYNCHRONIZATION_FAILURE_SUBTYPE = 4
+	AKA_NOTIFICATION_SUBTYPE            = 12
+	AKA_CLIENT_ERROR_SUBTYPE            = 14
 )
 
 var ausfContext AUSFContext

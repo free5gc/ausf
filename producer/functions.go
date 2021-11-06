@@ -1,7 +1,6 @@
 package producer
 
 import (
-	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -59,8 +58,8 @@ func CalculateAtMAC(key []byte, input []byte) []byte {
 	if _, err := h.Write(input); err != nil {
 		logger.EapAuthComfirmLog.Errorln(err.Error())
 	}
-	sha := string(h.Sum(nil))
-	return []byte(sha[:16])
+	sum := h.Sum(nil)
+	return sum[:16]
 }
 
 // func EapEncodeAttribute(attributeType string, data string) (returnStr string, err error) {
@@ -137,7 +136,7 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 
 // func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (K_encr string, K_aut string, K_re string,
 //    MSK string, EMSK string) {
-func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, string, string, string, string) {
+func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) ([]byte, []byte, []byte, []byte, []byte) {
 	keyAp := ikPrime + ckPrime
 
 	var key []byte
@@ -148,7 +147,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 	}
 	sBase := []byte("EAP-AKA'" + identity)
 
-	MK := ""
+	MK := []byte("")
 	prev := []byte("")
 	//_ = prev
 	prfRounds := 208/32 + 1
@@ -165,10 +164,10 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 			logger.EapAuthComfirmLog.Errorln(err.Error())
 		}
 
-		// Get result and encode as hexadecimal string
-		sha := string(h.Sum(nil))
-		MK += sha
-		prev = []byte(sha)
+		// Get result
+		sha := h.Sum(nil)
+		MK = append(MK, sha...)
+		prev = sha
 	}
 
 	K_encr := MK[0:16]  // 0..127
@@ -179,65 +178,125 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (string, st
 	return K_encr, K_aut, K_re, MSK, EMSK
 }
 
-func checkMACintegrity(offset int, expectedMacValue []byte, packet []byte, Kautn string) bool {
-	eapDecode, decodeErr := radius.EapDecode(packet)
-	if decodeErr != nil {
-		logger.EapAuthComfirmLog.Infoln(decodeErr.Error())
-	}
-	if zeroBytes, err := hex.DecodeString("00000000000000000000000000000000"); err != nil {
-		logger.EapAuthComfirmLog.Warnf("Decode error: %+v", err)
-	} else {
-		copy(eapDecode.Data[offset+4:offset+20], zeroBytes)
-	}
-	encodeAfter := eapDecode.Encode()
-	MACvalue := CalculateAtMAC([]byte(Kautn), encodeAfter)
+func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
+	var decodePkt ausf_context.EapAkaPrimePkt
+	var attrLen int
+	var decodeAttr ausf_context.EapAkaPrimeAttribute
+	attributes := make(map[uint8]ausf_context.EapAkaPrimeAttribute)
+	data := eapPkt[5:]
+	decodePkt.Subtype = data[0]
+	dataLen := len(data)
 
-	if bytes.Equal(MACvalue, expectedMacValue) {
-		return true
-	} else {
-		return false
-	}
-}
-
-// func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) (RES []byte, success bool) {
-func decodeResMac(packetData []byte, wholePacket []byte, Kautn string) ([]byte, bool) {
-	detectRes := false
-	detectMac := false
-	macCorrect := false
-	dataArray := packetData
-	var attributeLength int
-	var attributeType int
-	var RES []byte
-
-	for i := 0; i < len(dataArray); i += attributeLength {
-		attributeLength = int(uint(dataArray[1+i])) * 4
-		attributeType = int(uint(dataArray[0+i]))
-
-		if attributeType == ausf_context.AT_RES_ATTRIBUTE {
-			logger.EapAuthComfirmLog.Infoln("Detect AT_RES attribute")
-			detectRes = true
-			resLength := int(uint(dataArray[3+i]) | uint(dataArray[2+i])<<8)
-			RES = dataArray[4+i : 4+i+attributeLength-4]
-			byteRes := padZeros(RES, resLength)
-			RES = byteRes
-		} else if attributeType == ausf_context.AT_MAC_ATTRIBUTE {
-			logger.EapAuthComfirmLog.Infoln("Detect AT_MAC attribute")
-			detectMac = true
-			macStr := string(dataArray[4+i : 20+i])
-			if checkMACintegrity(i, []byte(macStr), wholePacket, Kautn) {
-				logger.EapAuthComfirmLog.Infoln("check MAC integrity succeed")
-				macCorrect = true
-			} else {
-				logger.EapAuthComfirmLog.Infoln("check MAC integrity failed")
+	// decode attributes
+	for i := 3; i < dataLen; i += attrLen {
+		attrType := data[i]
+		attrLen = int(data[i+1]) * 4
+		if attrLen == 0 {
+			return nil, fmt.Errorf("attribute length equal to zero")
+		}
+		if i+attrLen > dataLen {
+			return nil, fmt.Errorf("packet length out of range")
+		}
+		switch attrType {
+		case ausf_context.AT_RES_ATTRIBUTE:
+			logger.EapAuthComfirmLog.Tracef("Decoding AT_RES\n")
+			accLen := int(data[i+3] >> 3)
+			if accLen > 16 || accLen < 4 || accLen+4 > attrLen {
+				return nil, fmt.Errorf("attribute AT_RES decode err")
 			}
-		} else {
-			logger.EapAuthComfirmLog.Infof("Detect unknown attribute with type %d\n", attributeType)
+
+			decodeAttr.Type = attrType
+			decodeAttr.Length = data[i+1]
+			decodeAttr.Value = data[i+4 : i+4+accLen]
+			attributes[attrType] = decodeAttr
+		case ausf_context.AT_MAC_ATTRIBUTE:
+			logger.EapAuthComfirmLog.Tracef("Decoding AT_MAC\n")
+			if attrLen != 20 {
+				return nil, fmt.Errorf("attribute AT_MAC decode err")
+			}
+			decodeAttr.Type = attrType
+			decodeAttr.Length = data[i+1]
+			Mac := make([]byte, attrLen-4)
+			copy(Mac, data[i+4:i+attrLen])
+			decodeAttr.Value = Mac
+			attributes[attrType] = decodeAttr
+
+			// clean AT_MAC value for integrity check later
+			zeros := make([]byte, attrLen-4)
+			copy(data[i+4:i+attrLen], zeros)
+			decodePkt.MACInput = eapPkt
+		case ausf_context.AT_KDF_ATTRIBUTE:
+			logger.EapAuthComfirmLog.Tracef("Decoding AT_KDF\n")
+			if attrLen != 4 {
+				return nil, fmt.Errorf("attribute AT_KDF decode err")
+			}
+			decodeAttr.Type = attrType
+			decodeAttr.Length = data[i+1]
+			decodeAttr.Value = data[i+2 : i+attrLen]
+			attributes[attrType] = decodeAttr
+		case ausf_context.AT_AUTS_ATTRIBUTE:
+			logger.EapAuthComfirmLog.Tracef("Decoding AT_AUTS\n")
+			if attrLen != 16 {
+				return nil, fmt.Errorf("attribute AT_AUTS decode err")
+			}
+			decodeAttr.Type = attrType
+			decodeAttr.Length = data[i+1]
+			decodeAttr.Value = data[i+2 : i+attrLen]
+			attributes[attrType] = decodeAttr
+		case ausf_context.AT_CLIENT_ERROR_CODE_ATTRIBUTE:
+			logger.EapAuthComfirmLog.Tracef("Decoding AT_CLIENT_ERROR_CODE\n")
+			if attrLen != 4 {
+				return nil, fmt.Errorf("attribute AT_CLIENT_ERROR_CODE decode err")
+			}
+			decodeAttr.Type = attrType
+			decodeAttr.Length = data[i+1]
+			decodeAttr.Value = data[i+2 : i+attrLen]
+			attributes[attrType] = decodeAttr
+		default:
+			logger.EapAuthComfirmLog.Tracef("attribute type %x skipped\n", attrType)
 		}
 	}
-	if detectRes && detectMac && macCorrect {
-		return RES, true
+
+	switch decodePkt.Subtype {
+	case ausf_context.AKA_CHALLENGE_SUBTYPE:
+		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Challenge\n")
+		if _, ok := attributes[ausf_context.AT_RES_ATTRIBUTE]; !ok {
+			return nil, fmt.Errorf("AKA-Challenge attributes error")
+		} else if _, ok := attributes[ausf_context.AT_MAC_ATTRIBUTE]; !ok {
+			return nil, fmt.Errorf("AKA-Challenge attributes error")
+		}
+	case ausf_context.AKA_AUTHENTICATION_REJECT_SUBTYPE:
+		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Authentication-Reject\n")
+		if len(attributes) != 0 {
+			return nil, fmt.Errorf("AKA-Authentication-Reject attributes error")
+		}
+	case ausf_context.AKA_SYNCHRONIZATION_FAILURE_SUBTYPE:
+		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Synchronization-Failure\n")
+		if len(attributes) != 2 {
+			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
+		} else if _, ok := attributes[ausf_context.AT_AUTS_ATTRIBUTE]; !ok {
+			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
+		} else if _, ok := attributes[ausf_context.AT_KDF_ATTRIBUTE]; !ok {
+			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
+		} else if kdfVal := attributes[ausf_context.AT_KDF_ATTRIBUTE].Value; !(kdfVal[0] == 0 && kdfVal[1] == 1) {
+			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
+		}
+	case ausf_context.AKA_NOTIFICATION_SUBTYPE:
+		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Notification\n")
+	case ausf_context.AKA_CLIENT_ERROR_SUBTYPE:
+		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Client-Error\n")
+		if len(attributes) != 1 {
+			return nil, fmt.Errorf("AKA-Client-Error attributes error")
+		} else if _, ok := attributes[ausf_context.AT_CLIENT_ERROR_CODE_ATTRIBUTE]; !ok {
+			return nil, fmt.Errorf("AKA-Client-Error attributes error")
+		}
+	default:
+		logger.EapAuthComfirmLog.Tracef("subtype %x skipped\n", decodePkt.Subtype)
 	}
-	return nil, false
+
+	decodePkt.Attributes = attributes
+
+	return &decodePkt, nil
 }
 
 func ConstructFailEapAkaNotification(oldPktId uint8) string {
@@ -245,6 +304,10 @@ func ConstructFailEapAkaNotification(oldPktId uint8) string {
 	eapPkt.Code = radius.EapCodeRequest
 	eapPkt.Identifier = oldPktId + 1
 	eapPkt.Type = ausf_context.EAP_AKA_PRIME_TYPENUM
+
+	eapAkaHdrBytes := make([]byte, 3)
+	eapAkaHdrBytes[0] = ausf_context.AKA_NOTIFICATION_SUBTYPE
+
 	attrNum := fmt.Sprintf("%02x", ausf_context.AT_NOTIFICATION_ATTRIBUTE)
 	attribute := attrNum + "01" + "4000"
 	var attrHex []byte
@@ -253,7 +316,8 @@ func ConstructFailEapAkaNotification(oldPktId uint8) string {
 	} else {
 		attrHex = attrHexTmp
 	}
-	eapPkt.Data = attrHex
+
+	eapPkt.Data = append(eapAkaHdrBytes, attrHex...)
 	eapPktEncode := eapPkt.Encode()
 	return base64.StdEncoding.EncodeToString(eapPktEncode)
 }
@@ -298,11 +362,14 @@ func sendAuthResultToUDM(id string, authType models.AuthType, success bool, serv
 	timeNow := time.Now()
 	timePtr := &timeNow
 
+	self := ausf_context.GetSelf()
+
 	var authEvent models.AuthEvent
 	authEvent.TimeStamp = timePtr
 	authEvent.AuthType = authType
 	authEvent.Success = success
 	authEvent.ServingNetworkName = servingNetworkName
+	authEvent.NfInstanceId = self.GetSelfID()
 
 	client := createClientToUdmUeau(udmUrl)
 	_, _, confirmAuthErr := client.ConfirmAuthApi.ConfirmAuth(context.Background(), id, authEvent)
