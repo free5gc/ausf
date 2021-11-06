@@ -328,6 +328,7 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 		responseBody.AuthResult = models.AuthResult_SUCCESS
 		success = true
 		logger.Auth5gAkaComfirmLog.Infoln("5G AKA confirmation succeeded")
+		responseBody.Supi = currentSupi
 		responseBody.Kseaf = ausfCurrentContext.Kseaf
 	} else {
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
@@ -346,7 +347,6 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 		return nil, &problemDetails
 	}
 
-	responseBody.Supi = currentSupi
 	return &responseBody, nil
 }
 
