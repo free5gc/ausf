@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/free5gc/UeauCommon"
+	"github.com/free5gc/util/ueauth"
 )
 
 type testEapAkaPrimeCase struct {
@@ -46,12 +46,15 @@ func EapAkaPrimeKeyGenAll(data testEapAkaPrimeCase) ([]byte, []byte, []byte, []b
 	}
 	SQNxorAK := AUTN[:6]
 	key := append(CK, IK...)
-	FC := UeauCommon.FC_FOR_CK_PRIME_IK_PRIME_DERIVATION
+	FC := ueauth.FC_FOR_CK_PRIME_IK_PRIME_DERIVATION
 	P0 := []byte(data.NetworkName)
 	P1 := SQNxorAK
 
 	// Generate CK' IK'
-	kdfVal := UeauCommon.GetKDFValue(key, FC, P0, UeauCommon.KDFLen(P0), P1, UeauCommon.KDFLen(P1))
+	kdfVal, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
+	if err != nil {
+		fmt.Println(err)
+	}
 	CKPrime := kdfVal[:len(kdfVal)/2]
 	IKPrime := kdfVal[len(kdfVal)/2:]
 	CKPrimeHex := hex.EncodeToString(CKPrime)

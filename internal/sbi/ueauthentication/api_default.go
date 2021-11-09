@@ -14,11 +14,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/free5gc/ausf/logger"
-	"github.com/free5gc/ausf/producer"
-	"github.com/free5gc/http_wrapper"
+	"github.com/free5gc/ausf/internal/logger"
+	"github.com/free5gc/ausf/internal/sbi/producer"
 	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/util/httpwrapper"
 )
 
 // HTTPEapAuthMethod -
@@ -51,7 +51,7 @@ func HTTPEapAuthMethod(ctx *gin.Context) {
 		return
 	}
 
-	req := http_wrapper.NewRequest(ctx.Request, eapSessionReq)
+	req := httpwrapper.NewRequest(ctx.Request, eapSessionReq)
 	req.Params["authCtxId"] = ctx.Param("authCtxId")
 
 	rsp := producer.HandleEapAuthComfirmRequest(req)
@@ -100,7 +100,7 @@ func HTTPUeAuthenticationsAuthCtxID5gAkaConfirmationPut(ctx *gin.Context) {
 		return
 	}
 
-	req := http_wrapper.NewRequest(ctx.Request, confirmationData)
+	req := httpwrapper.NewRequest(ctx.Request, confirmationData)
 	req.Params["authCtxId"] = ctx.Param("authCtxId")
 
 	rsp := producer.HandleAuth5gAkaComfirmRequest(req)
@@ -149,7 +149,7 @@ func HTTPUeAuthenticationsPost(ctx *gin.Context) {
 		return
 	}
 
-	req := http_wrapper.NewRequest(ctx.Request, authInfo)
+	req := httpwrapper.NewRequest(ctx.Request, authInfo)
 
 	rsp := producer.HandleUeAuthPostRequest(req)
 

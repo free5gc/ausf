@@ -15,9 +15,9 @@ import (
 	"github.com/antihax/optional"
 	"github.com/bronze1man/radius"
 
-	"github.com/free5gc/ausf/consumer"
-	ausf_context "github.com/free5gc/ausf/context"
-	"github.com/free5gc/ausf/logger"
+	ausf_context "github.com/free5gc/ausf/internal/context"
+	"github.com/free5gc/ausf/internal/logger"
+	"github.com/free5gc/ausf/internal/sbi/consumer"
 	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
 	Nudm_UEAU "github.com/free5gc/openapi/Nudm_UEAuthentication"
 	"github.com/free5gc/openapi/models"

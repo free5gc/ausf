@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	ausf_context "github.com/free5gc/ausf/context"
-	"github.com/free5gc/ausf/logger"
+	ausf_context "github.com/free5gc/ausf/internal/context"
+	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/Nnrf_NFManagement"
 	"github.com/free5gc/openapi/models"

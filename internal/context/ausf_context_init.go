@@ -7,16 +7,15 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/free5gc/ausf/factory"
-	"github.com/free5gc/ausf/logger"
+	"github.com/free5gc/ausf/internal/logger"
+	"github.com/free5gc/ausf/internal/util"
+	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/path_util"
 )
 
 func TestInit() {
 	// load config
-	DefaultAusfConfigPath := path_util.Free5gcPath("free5gc/config/ausfcfg.yaml")
-	if err := factory.InitConfigFactory(DefaultAusfConfigPath); err != nil {
+	if err := factory.InitConfigFactory(util.AusfDefaultConfigPath); err != nil {
 		panic(err)
 	}
 	Init()

@@ -15,14 +15,14 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 
-	"github.com/free5gc/UeauCommon"
-	ausf_context "github.com/free5gc/ausf/context"
-	"github.com/free5gc/ausf/logger"
-	"github.com/free5gc/http_wrapper"
+	ausf_context "github.com/free5gc/ausf/internal/context"
+	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/util/httpwrapper"
+	"github.com/free5gc/util/ueauth"
 )
 
-func HandleEapAuthComfirmRequest(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleEapAuthComfirmRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.Auth5gAkaComfirmLog.Infof("EapAuthComfirmRequest")
 
 	updateEapSession := request.Body.(models.EapSession)
@@ -31,36 +31,36 @@ func HandleEapAuthComfirmRequest(request *http_wrapper.Request) *http_wrapper.Re
 	response, problemDetails := EapAuthComfirmRequestProcedure(updateEapSession, eapSessionID)
 
 	if response != nil {
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
-func HandleAuth5gAkaComfirmRequest(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleAuth5gAkaComfirmRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.Auth5gAkaComfirmLog.Infof("Auth5gAkaComfirmRequest")
 	updateConfirmationData := request.Body.(models.ConfirmationData)
 	ConfirmationDataResponseID := request.Params["authCtxId"]
 
 	response, problemDetails := Auth5gAkaComfirmRequestProcedure(updateConfirmationData, ConfirmationDataResponseID)
 	if response != nil {
-		return http_wrapper.NewResponse(http.StatusOK, nil, response)
+		return httpwrapper.NewResponse(http.StatusOK, nil, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
-func HandleUeAuthPostRequest(request *http_wrapper.Request) *http_wrapper.Response {
+func HandleUeAuthPostRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.UeAuthPostLog.Infof("HandleUeAuthPostRequest")
 	updateAuthenticationInfo := request.Body.(models.AuthenticationInfo)
 
@@ -69,15 +69,15 @@ func HandleUeAuthPostRequest(request *http_wrapper.Request) *http_wrapper.Respon
 	respHeader.Set("Location", locationURI)
 
 	if response != nil {
-		return http_wrapper.NewResponse(http.StatusCreated, respHeader, response)
+		return httpwrapper.NewResponse(http.StatusCreated, respHeader, response)
 	} else if problemDetails != nil {
-		return http_wrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 	}
 	problemDetails = &models.ProblemDetails{
 		Status: http.StatusForbidden,
 		Cause:  "UNSPECIFIED",
 	}
-	return http_wrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
+	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
 // func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (
@@ -160,7 +160,8 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		concat := authInfoResult.AuthenticationVector.Rand + authInfoResult.AuthenticationVector.XresStar
 		var hxresStarBytes []byte
 		if bytes, err := hex.DecodeString(concat); err != nil {
-			logger.Auth5gAkaComfirmLog.Warnf("decode error: %+v", err)
+			logger.Auth5gAkaComfirmLog.Errorf("decode concat error: %+v", err)
+			// TODO: return ProblemDetails
 		} else {
 			hxresStarBytes = bytes
 		}
@@ -172,12 +173,17 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		Kausf := authInfoResult.AuthenticationVector.Kausf
 		var KausfDecode []byte
 		if ausfDecode, err := hex.DecodeString(Kausf); err != nil {
-			logger.Auth5gAkaComfirmLog.Warnf("AUSF decode failed: %+v", err)
+			logger.Auth5gAkaComfirmLog.Errorf("decode Kausf failed: %+v", err)
+			// TODO: return ProblemDetails
 		} else {
 			KausfDecode = ausfDecode
 		}
 		P0 := []byte(snName)
-		Kseaf := UeauCommon.GetKDFValue(KausfDecode, UeauCommon.FC_FOR_KSEAF_DERIVATION, P0, UeauCommon.KDFLen(P0))
+		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
+		if err != nil {
+			logger.Auth5gAkaComfirmLog.Errorf("GetKDFValue failed: %+v", err)
+			// TODO: return ProblemDetails
+		}
 		ausfUeContext.XresStar = authInfoResult.AuthenticationVector.XresStar
 		ausfUeContext.Kausf = Kausf
 		ausfUeContext.Kseaf = hex.EncodeToString(Kseaf)
@@ -222,7 +228,10 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		Kausf := EMSK[0:32]
 		ausfUeContext.Kausf = hex.EncodeToString(Kausf)
 		P0 := []byte(snName)
-		Kseaf := UeauCommon.GetKDFValue(Kausf, UeauCommon.FC_FOR_KSEAF_DERIVATION, P0, UeauCommon.KDFLen(P0))
+		Kseaf, err := ueauth.GetKDFValue(Kausf, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
+		if err != nil {
+			logger.EapAuthComfirmLog.Errorf("GetKDFValue failed: %+v", err)
+		}
 		ausfUeContext.Kseaf = hex.EncodeToString(Kseaf)
 
 		var eapPkt radius.EapPacket
@@ -242,27 +251,27 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		eapAKAHdrBytes[0] = ausf_context.AKA_CHALLENGE_SUBTYPE
 		eapAKAHdr = string(eapAKAHdrBytes)
 		if atRandTmp, err := EapEncodeAttribute("AT_RAND", RAND); err != nil {
-			logger.EapAuthComfirmLog.Warnf("EAP encode RAND failed: %+v", err)
+			logger.EapAuthComfirmLog.Errorf("EAP encode RAND failed: %+v", err)
 		} else {
 			atRand = atRandTmp
 		}
 		if atAutnTmp, err := EapEncodeAttribute("AT_AUTN", AUTN); err != nil {
-			logger.EapAuthComfirmLog.Warnf("EAP encode AUTN failed: %+v", err)
+			logger.EapAuthComfirmLog.Errorf("EAP encode AUTN failed: %+v", err)
 		} else {
 			atAutn = atAutnTmp
 		}
 		if atKdfTmp, err := EapEncodeAttribute("AT_KDF", snName); err != nil {
-			logger.EapAuthComfirmLog.Warnf("EAP encode KDF failed: %+v", err)
+			logger.EapAuthComfirmLog.Errorf("EAP encode KDF failed: %+v", err)
 		} else {
 			atKdf = atKdfTmp
 		}
 		if atKdfInputTmp, err := EapEncodeAttribute("AT_KDF_INPUT", snName); err != nil {
-			logger.EapAuthComfirmLog.Warnf("EAP encode KDF failed: %+v", err)
+			logger.EapAuthComfirmLog.Errorf("EAP encode KDF failed: %+v", err)
 		} else {
 			atKdfInput = atKdfInputTmp
 		}
 		if atMACTmp, err := EapEncodeAttribute("AT_MAC", ""); err != nil {
-			logger.EapAuthComfirmLog.Warnf("EAP encode MAC failed: %+v", err)
+			logger.EapAuthComfirmLog.Errorf("EAP encode MAC failed: %+v", err)
 		} else {
 			atMAC = atMACTmp
 		}
