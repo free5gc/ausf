@@ -78,12 +78,12 @@ func (ausf *AUSF) Initialize(c *cli.Context) error {
 		return err
 	}
 
-	ausf.setLogLevel()
+	ausf.SetLogLevel()
 
 	return nil
 }
 
-func (ausf *AUSF) setLogLevel() {
+func (ausf *AUSF) SetLogLevel() {
 	if factory.AusfConfig.Logger == nil {
 		logger.InitLog.Warnln("AUSF config without log level setting!!!")
 		return
