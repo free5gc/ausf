@@ -161,7 +161,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		var hxresStarBytes []byte
 		if bytes, err := hex.DecodeString(concat); err != nil {
 			logger.Auth5gAkaComfirmLog.Errorf("decode concat error: %+v", err)
-			// TODO: return ProblemDetails
+			var problemDetails models.ProblemDetails
+			problemDetails.Title = "Concat Decode Problem"
+			problemDetails.Cause = "CONCAT_DECODE_PROBLEM"
+			problemDetails.Detail = err.Error()
+			problemDetails.Status = http.StatusInternalServerError
+			return nil, "", &problemDetails
 		} else {
 			hxresStarBytes = bytes
 		}
