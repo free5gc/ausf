@@ -187,7 +187,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
 		if err != nil {
 			logger.Auth5gAkaComfirmLog.Errorf("GetKDFValue failed: %+v", err)
-			// TODO: return ProblemDetails
+			var problemDetails models.ProblemDetails
+			problemDetails.Title = "Kseaf Derivation Problem"
+			problemDetails.Cause = "KSEAF_DERIVATION_PROBLEM"
+			problemDetails.Detail = err.Error()
+			problemDetails.Status = http.StatusInternalServerError
+			return nil, "", &problemDetails
 		}
 		ausfUeContext.XresStar = authInfoResult.AuthenticationVector.XresStar
 		ausfUeContext.Kausf = Kausf
