@@ -174,7 +174,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		var KausfDecode []byte
 		if ausfDecode, err := hex.DecodeString(Kausf); err != nil {
 			logger.Auth5gAkaComfirmLog.Errorf("decode Kausf failed: %+v", err)
-			// TODO: return ProblemDetails
+			var problemDetails models.ProblemDetails
+			problemDetails.Title = "Kausf Decode Problem"
+			problemDetails.Cause = "KAUSF_DECODE_PROBLEM"
+			problemDetails.Detail = err.Error()
+			problemDetails.Status = http.StatusInternalServerError
+			return nil, "", &problemDetails
 		} else {
 			KausfDecode = ausfDecode
 		}
