@@ -161,7 +161,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		var hxresStarBytes []byte
 		if bytes, err := hex.DecodeString(concat); err != nil {
 			logger.Auth5gAkaComfirmLog.Errorf("decode concat error: %+v", err)
-			// TODO: return ProblemDetails
+			var problemDetails models.ProblemDetails
+			problemDetails.Title = "Concat Decode Problem"
+			problemDetails.Cause = "CONCAT_DECODE_PROBLEM"
+			problemDetails.Detail = err.Error()
+			problemDetails.Status = http.StatusInternalServerError
+			return nil, "", &problemDetails
 		} else {
 			hxresStarBytes = bytes
 		}
@@ -174,7 +179,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		var KausfDecode []byte
 		if ausfDecode, err := hex.DecodeString(Kausf); err != nil {
 			logger.Auth5gAkaComfirmLog.Errorf("decode Kausf failed: %+v", err)
-			// TODO: return ProblemDetails
+			var problemDetails models.ProblemDetails
+			problemDetails.Title = "Kausf Decode Problem"
+			problemDetails.Cause = "KAUSF_DECODE_PROBLEM"
+			problemDetails.Detail = err.Error()
+			problemDetails.Status = http.StatusInternalServerError
+			return nil, "", &problemDetails
 		} else {
 			KausfDecode = ausfDecode
 		}
@@ -182,7 +192,12 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		Kseaf, err := ueauth.GetKDFValue(KausfDecode, ueauth.FC_FOR_KSEAF_DERIVATION, P0, ueauth.KDFLen(P0))
 		if err != nil {
 			logger.Auth5gAkaComfirmLog.Errorf("GetKDFValue failed: %+v", err)
-			// TODO: return ProblemDetails
+			var problemDetails models.ProblemDetails
+			problemDetails.Title = "Kseaf Derivation Problem"
+			problemDetails.Cause = "KSEAF_DERIVATION_PROBLEM"
+			problemDetails.Detail = err.Error()
+			problemDetails.Status = http.StatusInternalServerError
+			return nil, "", &problemDetails
 		}
 		ausfUeContext.XresStar = authInfoResult.AuthenticationVector.XresStar
 		ausfUeContext.Kausf = Kausf
