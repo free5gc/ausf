@@ -83,7 +83,8 @@ func HandleUeAuthPostRequest(request *httpwrapper.Request) *httpwrapper.Response
 // func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (
 //    response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
 func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx,
-	string, *models.ProblemDetails) {
+	string, *models.ProblemDetails,
+) {
 	var responseBody models.UeAuthenticationCtx
 	var authInfoReq models.AuthenticationInfoRequest
 
@@ -319,7 +320,8 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 //  problemDetails *models.ProblemDetails) {
 
 func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.ConfirmationData,
-	ConfirmationDataResponseID string) (*models.ConfirmationDataResponse, *models.ProblemDetails) {
+	ConfirmationDataResponseID string,
+) (*models.ConfirmationDataResponse, *models.ProblemDetails) {
 	var responseBody models.ConfirmationDataResponse
 	success := false
 	responseBody.AuthResult = models.AuthResult_FAILURE
@@ -376,7 +378,8 @@ func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.Confirmation
 
 // return response, problemDetails
 func EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessionID string) (*models.EapSession,
-	*models.ProblemDetails) {
+	*models.ProblemDetails,
+) {
 	var responseBody models.EapSession
 
 	if !ausf_context.CheckIfSuciSupiPairExists(eapSessionID) {
