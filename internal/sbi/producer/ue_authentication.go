@@ -132,7 +132,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		} else {
 			problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
 		}
-		problemDetails.Status = http.StatusInternalServerError
+		problemDetails.Status = int32(rsp.StatusCode)
 		return nil, "", &problemDetails
 	}
 	defer func() {
