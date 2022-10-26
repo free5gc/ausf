@@ -372,7 +372,12 @@ func sendAuthResultToUDM(id string, authType models.AuthType, success bool, serv
 	authEvent.NfInstanceId = self.GetSelfID()
 
 	client := createClientToUdmUeau(udmUrl)
-	_, _, confirmAuthErr := client.ConfirmAuthApi.ConfirmAuth(context.Background(), id, authEvent)
+	_, rsp, confirmAuthErr := client.ConfirmAuthApi.ConfirmAuth(context.Background(), id, authEvent)
+	defer func() {
+		if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
+			logger.ConsumerLog.Errorf("ConfirmAuth Response cannot close: %v", rspCloseErr)
+		}
+	}()
 	return confirmAuthErr
 }
 
