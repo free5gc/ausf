@@ -93,7 +93,7 @@ var ausfContext AUSFContext
 
 func Init() {
 	if snRegex, err := regexp.Compile("5G:mnc[0-9]{3}[.]mcc[0-9]{3}[.]3gppnetwork[.]org"); err != nil {
-		logger.ContextLog.Warnf("SN compile error: %+v", err)
+		logger.CtxLog.Warnf("SN compile error: %+v", err)
 	} else {
 		ausfContext.snRegex = snRegex
 	}

@@ -8,18 +8,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/free5gc/ausf/internal/logger"
-	"github.com/free5gc/ausf/internal/util"
 	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi/models"
 )
-
-func TestInit() {
-	// load config
-	if err := factory.InitConfigFactory(util.AusfDefaultConfigPath); err != nil {
-		panic(err)
-	}
-	Init()
-}
 
 func InitAusfContext(context *AUSFContext) {
 	config := factory.AusfConfig
@@ -32,8 +23,8 @@ func InitAusfContext(context *AUSFContext) {
 	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
 	context.UriScheme = models.UriScheme(configuration.Sbi.Scheme) // default uri scheme
-	context.RegisterIPv4 = factory.AUSF_DEFAULT_IPV4               // default localhost
-	context.SBIPort = factory.AUSF_DEFAULT_PORT_INT                // default port
+	context.RegisterIPv4 = factory.AusfSbiDefaultIPv4              // default localhost
+	context.SBIPort = factory.AusfSbiDefaultPort                   // default port
 	if sbi != nil {
 		if sbi.RegisterIPv4 != "" {
 			context.RegisterIPv4 = sbi.RegisterIPv4
@@ -65,7 +56,7 @@ func InitAusfContext(context *AUSFContext) {
 
 	// context.NfService
 	context.NfService = make(map[models.ServiceName]models.NfService)
-	AddNfServices(&context.NfService, &config, context)
+	AddNfServices(&context.NfService, config, context)
 	fmt.Println("ausf context = ", context)
 
 	context.EapAkaSupiImsiPrefix = configuration.EapAkaSupiImsiPrefix

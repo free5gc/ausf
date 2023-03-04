@@ -1,141 +1,97 @@
 package service
 
 import (
-	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
-	"os/exec"
 	"os/signal"
 	"runtime/debug"
-	"sync"
 	"syscall"
 
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/internal/sbi/consumer"
 	"github.com/free5gc/ausf/internal/sbi/ueauthentication"
-	"github.com/free5gc/ausf/internal/util"
 	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/util/httpwrapper"
 	logger_util "github.com/free5gc/util/logger"
 )
 
-type AUSF struct {
-	KeyLogPath string
+type AusfApp struct {
+	cfg     *factory.Config
+	ausfCtx *ausf_context.AUSFContext
 }
 
-type (
-	// Commands information.
-	Commands struct {
-		config string
-	}
-)
+func NewApp(cfg *factory.Config) (*AusfApp, error) {
+	ausf := &AusfApp{cfg: cfg}
+	ausf.SetLogEnable(cfg.GetLogEnable())
+	ausf.SetLogLevel(cfg.GetLogLevel())
+	ausf.SetReportCaller(cfg.GetLogReportCaller())
 
-var commands Commands
-
-var cliCmd = []cli.Flag{
-	cli.StringFlag{
-		Name:  "config, c",
-		Usage: "Load configuration from `FILE`",
-	},
-	cli.StringFlag{
-		Name:  "log, l",
-		Usage: "Output NF log to `FILE`",
-	},
-	cli.StringFlag{
-		Name:  "log5gc, lc",
-		Usage: "Output free5gc log to `FILE`",
-	},
+	ausf_context.Init()
+	ausf.ausfCtx = ausf_context.GetSelf()
+	return ausf, nil
 }
 
-func (*AUSF) GetCliCmd() (flags []cli.Flag) {
-	return cliCmd
-}
-
-func (ausf *AUSF) Initialize(c *cli.Context) error {
-	commands = Commands{
-		config: c.String("config"),
-	}
-
-	if commands.config != "" {
-		if err := factory.InitConfigFactory(commands.config); err != nil {
-			return err
-		}
-	} else {
-		if err := factory.InitConfigFactory(util.AusfDefaultConfigPath); err != nil {
-			return err
-		}
-	}
-
-	if err := factory.CheckConfigVersion(); err != nil {
-		return err
-	}
-
-	if _, err := factory.AusfConfig.Validate(); err != nil {
-		return err
-	}
-
-	ausf.SetLogLevel()
-
-	return nil
-}
-
-func (ausf *AUSF) SetLogLevel() {
-	if factory.AusfConfig.Logger == nil {
-		logger.InitLog.Warnln("AUSF config without log level setting!!!")
+func (a *AusfApp) SetLogEnable(enable bool) {
+	logger.MainLog.Infof("Log enable is set to [%v]", enable)
+	if enable && logger.Log.Out == os.Stderr {
+		return
+	} else if !enable && logger.Log.Out == ioutil.Discard {
 		return
 	}
 
-	if factory.AusfConfig.Logger.AUSF != nil {
-		if factory.AusfConfig.Logger.AUSF.DebugLevel != "" {
-			if level, err := logrus.ParseLevel(factory.AusfConfig.Logger.AUSF.DebugLevel); err != nil {
-				logger.InitLog.Warnf("AUSF Log level [%s] is invalid, set to [info] level",
-					factory.AusfConfig.Logger.AUSF.DebugLevel)
-				logger.SetLogLevel(logrus.InfoLevel)
-			} else {
-				logger.InitLog.Infof("AUSF Log level is set to [%s] level", level)
-				logger.SetLogLevel(level)
-			}
-		} else {
-			logger.InitLog.Warnln("AUSF Log level not set. Default set to [info] level")
-			logger.SetLogLevel(logrus.InfoLevel)
-		}
-		logger.SetReportCaller(factory.AusfConfig.Logger.AUSF.ReportCaller)
+	a.cfg.SetLogEnable(enable)
+	if enable {
+		logger.Log.SetOutput(os.Stderr)
+	} else {
+		logger.Log.SetOutput(ioutil.Discard)
 	}
 }
 
-func (ausf *AUSF) FilterCli(c *cli.Context) (args []string) {
-	for _, flag := range ausf.GetCliCmd() {
-		name := flag.GetName()
-		value := fmt.Sprint(c.Generic(name))
-		if value == "" {
-			continue
-		}
-
-		args = append(args, "--"+name, value)
+func (a *AusfApp) SetLogLevel(level string) {
+	lvl, err := logrus.ParseLevel(level)
+	if err != nil {
+		logger.MainLog.Warnf("Log level [%s] is invalid", level)
+		return
 	}
-	return args
+
+	logger.MainLog.Infof("Log level is set to [%s]", level)
+	if lvl == logger.Log.GetLevel() {
+		return
+	}
+
+	a.cfg.SetLogLevel(level)
+	logger.Log.SetLevel(lvl)
 }
 
-func (ausf *AUSF) Start() {
+func (a *AusfApp) SetReportCaller(reportCaller bool) {
+	logger.MainLog.Infof("Report Caller is set to [%v]", reportCaller)
+	if reportCaller == logger.Log.ReportCaller {
+		return
+	}
+
+	a.cfg.SetLogReportCaller(reportCaller)
+	logger.Log.SetReportCaller(reportCaller)
+}
+
+func (a *AusfApp) Start(tlsKeyLogPath string) {
 	logger.InitLog.Infoln("Server started")
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	ueauthentication.AddService(router)
 
-	pemPath := util.AusfDefaultPemPath
-	keyPath := util.AusfDefaultKeyPath
+	pemPath := factory.AusfDefaultTLSPemPath
+	keyPath := factory.AusfDefaultTLSKeyPath
 	sbi := factory.AusfConfig.Configuration.Sbi
 	if sbi.Tls != nil {
 		pemPath = sbi.Tls.Pem
 		keyPath = sbi.Tls.Key
 	}
 
-	ausf_context.Init()
-	self := ausf_context.GetSelf()
+	self := a.ausfCtx
 	// Register to NRF
 	profile, err := consumer.BuildNFInstance(self)
 	if err != nil {
@@ -159,11 +115,11 @@ func (ausf *AUSF) Start() {
 		}()
 
 		<-signalChannel
-		ausf.Terminate()
+		a.Terminate()
 		os.Exit(0)
 	}()
 
-	server, err := httpwrapper.NewHttp2Server(addr, ausf.KeyLogPath, router)
+	server, err := httpwrapper.NewHttp2Server(addr, tlsKeyLogPath, router)
 	if server == nil {
 		logger.InitLog.Errorf("Initialize HTTP server failed: %+v", err)
 		return
@@ -185,73 +141,7 @@ func (ausf *AUSF) Start() {
 	}
 }
 
-func (ausf *AUSF) Exec(c *cli.Context) error {
-	logger.InitLog.Traceln("args:", c.String("ausfcfg"))
-	args := ausf.FilterCli(c)
-	logger.InitLog.Traceln("filter: ", args)
-	command := exec.Command("./ausf", args...)
-
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		logger.InitLog.Fatalln(err)
-	}
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-	go func() {
-		defer func() {
-			if p := recover(); p != nil {
-				// Print stack for panic to log. Fatalf() will let program exit.
-				logger.InitLog.Fatalf("panic: %v\n%s", p, string(debug.Stack()))
-			}
-		}()
-
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		logger.InitLog.Fatalln(err)
-	}
-	go func() {
-		defer func() {
-			if p := recover(); p != nil {
-				// Print stack for panic to log. Fatalf() will let program exit.
-				logger.InitLog.Fatalf("panic: %v\n%s", p, string(debug.Stack()))
-			}
-		}()
-
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			fmt.Println(in.Text())
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		defer func() {
-			if p := recover(); p != nil {
-				// Print stack for panic to log. Fatalf() will let program exit.
-				logger.InitLog.Fatalf("panic: %v\n%s", p, string(debug.Stack()))
-			}
-		}()
-
-		startErr := command.Start()
-		if startErr != nil {
-			logger.InitLog.Fatalln(startErr)
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	return err
-}
-
-func (ausf *AUSF) Terminate() {
+func (a *AusfApp) Terminate() {
 	logger.InitLog.Infof("Terminating AUSF...")
 	// deregister with NRF
 	problemDetails, err := consumer.SendDeregisterNFInstance()

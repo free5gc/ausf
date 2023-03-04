@@ -33,7 +33,7 @@ func HTTPEapAuthMethod(ctx *gin.Context) {
 			Detail: err.Error(),
 			Cause:  "SYSTEM_FAILURE",
 		}
-		logger.Auth5gAkaComfirmLog.Errorf("Get Request Body error: %+v", err)
+		logger.Auth5gAkaLog.Errorf("Get Request Body error: %+v", err)
 		ctx.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -46,7 +46,7 @@ func HTTPEapAuthMethod(ctx *gin.Context) {
 			Status: http.StatusBadRequest,
 			Detail: problemDetail,
 		}
-		logger.Auth5gAkaComfirmLog.Errorln(problemDetail)
+		logger.Auth5gAkaLog.Errorln(problemDetail)
 		ctx.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -58,7 +58,7 @@ func HTTPEapAuthMethod(ctx *gin.Context) {
 
 	responseBody, err := openapi.Serialize(rsp.Body, "application/json")
 	if err != nil {
-		logger.Auth5gAkaComfirmLog.Errorln(err)
+		logger.Auth5gAkaLog.Errorln(err)
 		problemDetails := models.ProblemDetails{
 			Status: http.StatusInternalServerError,
 			Cause:  "SYSTEM_FAILURE",
@@ -82,7 +82,7 @@ func HTTPUeAuthenticationsAuthCtxID5gAkaConfirmationPut(ctx *gin.Context) {
 			Detail: err.Error(),
 			Cause:  "SYSTEM_FAILURE",
 		}
-		logger.Auth5gAkaComfirmLog.Errorf("Get Request Body error: %+v", err)
+		logger.Auth5gAkaLog.Errorf("Get Request Body error: %+v", err)
 		ctx.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -95,7 +95,7 @@ func HTTPUeAuthenticationsAuthCtxID5gAkaConfirmationPut(ctx *gin.Context) {
 			Status: http.StatusBadRequest,
 			Detail: problemDetail,
 		}
-		logger.Auth5gAkaComfirmLog.Errorln(problemDetail)
+		logger.Auth5gAkaLog.Errorln(problemDetail)
 		ctx.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -107,7 +107,7 @@ func HTTPUeAuthenticationsAuthCtxID5gAkaConfirmationPut(ctx *gin.Context) {
 
 	responseBody, err := openapi.Serialize(rsp.Body, "application/json")
 	if err != nil {
-		logger.Auth5gAkaComfirmLog.Errorln(err)
+		logger.Auth5gAkaLog.Errorln(err)
 		problemDetails := models.ProblemDetails{
 			Status: http.StatusInternalServerError,
 			Cause:  "SYSTEM_FAILURE",
@@ -131,7 +131,7 @@ func HTTPUeAuthenticationsPost(ctx *gin.Context) {
 			Detail: err.Error(),
 			Cause:  "SYSTEM_FAILURE",
 		}
-		logger.UeAuthPostLog.Errorf("Get Request Body error: %+v", err)
+		logger.UeAuthLog.Errorf("Get Request Body error: %+v", err)
 		ctx.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -144,7 +144,7 @@ func HTTPUeAuthenticationsPost(ctx *gin.Context) {
 			Status: http.StatusBadRequest,
 			Detail: problemDetail,
 		}
-		logger.UeAuthPostLog.Errorln(problemDetail)
+		logger.UeAuthLog.Errorln(problemDetail)
 		ctx.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -158,7 +158,7 @@ func HTTPUeAuthenticationsPost(ctx *gin.Context) {
 	}
 	responseBody, err := openapi.Serialize(rsp.Body, "application/json")
 	if err != nil {
-		logger.UeAuthPostLog.Errorln(err)
+		logger.UeAuthLog.Errorln(err)
 		problemDetails := models.ProblemDetails{
 			Status: http.StatusInternalServerError,
 			Cause:  "SYSTEM_FAILURE",

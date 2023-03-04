@@ -27,7 +27,7 @@ func KDF5gAka(param ...string) hash.Hash {
 	s := param[0]
 	s += param[1]
 	if p0len, err := strconv.Atoi(param[2]); err != nil {
-		logger.EapAuthComfirmLog.Warnf("atoi failed: %+v", err)
+		logger.AuthELog.Warnf("atoi failed: %+v", err)
 	} else {
 		s += strconv.FormatInt(int64(p0len), 16)
 	}
@@ -56,7 +56,7 @@ func CalculateAtMAC(key []byte, input []byte) []byte {
 	// keyed with K_aut
 	h := hmac.New(sha256.New, key)
 	if _, err := h.Write(input); err != nil {
-		logger.EapAuthComfirmLog.Errorln(err.Error())
+		logger.AuthELog.Errorln(err.Error())
 	}
 	sum := h.Sum(nil)
 	return sum[:16]
@@ -123,7 +123,7 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 		return string(b[:]), nil
 
 	default:
-		logger.EapAuthComfirmLog.Errorf("UNKNOWN attributeType %s\n", attributeType)
+		logger.AuthELog.Errorf("UNKNOWN attributeType %s\n", attributeType)
 		return "", nil
 	}
 
@@ -141,7 +141,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) ([]byte, []
 
 	var key []byte
 	if keyTmp, err := hex.DecodeString(keyAp); err != nil {
-		logger.EapAuthComfirmLog.Warnf("Decode key AP failed: %+v", err)
+		logger.AuthELog.Warnf("Decode key AP failed: %+v", err)
 	} else {
 		key = keyTmp
 	}
@@ -161,7 +161,7 @@ func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) ([]byte, []
 
 		// Write Data to it
 		if _, err := h.Write(s); err != nil {
-			logger.EapAuthComfirmLog.Errorln(err.Error())
+			logger.AuthELog.Errorln(err.Error())
 		}
 
 		// Get result
@@ -199,7 +199,7 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 		}
 		switch attrType {
 		case ausf_context.AT_RES_ATTRIBUTE:
-			logger.EapAuthComfirmLog.Tracef("Decoding AT_RES\n")
+			logger.AuthELog.Tracef("Decoding AT_RES\n")
 			accLen := int(data[i+3] >> 3)
 			if accLen > 16 || accLen < 4 || accLen+4 > attrLen {
 				return nil, fmt.Errorf("attribute AT_RES decode err")
@@ -210,7 +210,7 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 			decodeAttr.Value = data[i+4 : i+4+accLen]
 			attributes[attrType] = decodeAttr
 		case ausf_context.AT_MAC_ATTRIBUTE:
-			logger.EapAuthComfirmLog.Tracef("Decoding AT_MAC\n")
+			logger.AuthELog.Tracef("Decoding AT_MAC\n")
 			if attrLen != 20 {
 				return nil, fmt.Errorf("attribute AT_MAC decode err")
 			}
@@ -226,7 +226,7 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 			copy(data[i+4:i+attrLen], zeros)
 			decodePkt.MACInput = eapPkt
 		case ausf_context.AT_KDF_ATTRIBUTE:
-			logger.EapAuthComfirmLog.Tracef("Decoding AT_KDF\n")
+			logger.AuthELog.Tracef("Decoding AT_KDF\n")
 			if attrLen != 4 {
 				return nil, fmt.Errorf("attribute AT_KDF decode err")
 			}
@@ -235,7 +235,7 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 			decodeAttr.Value = data[i+2 : i+attrLen]
 			attributes[attrType] = decodeAttr
 		case ausf_context.AT_AUTS_ATTRIBUTE:
-			logger.EapAuthComfirmLog.Tracef("Decoding AT_AUTS\n")
+			logger.AuthELog.Tracef("Decoding AT_AUTS\n")
 			if attrLen != 16 {
 				return nil, fmt.Errorf("attribute AT_AUTS decode err")
 			}
@@ -244,7 +244,7 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 			decodeAttr.Value = data[i+2 : i+attrLen]
 			attributes[attrType] = decodeAttr
 		case ausf_context.AT_CLIENT_ERROR_CODE_ATTRIBUTE:
-			logger.EapAuthComfirmLog.Tracef("Decoding AT_CLIENT_ERROR_CODE\n")
+			logger.AuthELog.Tracef("Decoding AT_CLIENT_ERROR_CODE\n")
 			if attrLen != 4 {
 				return nil, fmt.Errorf("attribute AT_CLIENT_ERROR_CODE decode err")
 			}
@@ -253,25 +253,25 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 			decodeAttr.Value = data[i+2 : i+attrLen]
 			attributes[attrType] = decodeAttr
 		default:
-			logger.EapAuthComfirmLog.Tracef("attribute type %x skipped\n", attrType)
+			logger.AuthELog.Tracef("attribute type %x skipped\n", attrType)
 		}
 	}
 
 	switch decodePkt.Subtype {
 	case ausf_context.AKA_CHALLENGE_SUBTYPE:
-		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Challenge\n")
+		logger.AuthELog.Tracef("Subtype AKA-Challenge\n")
 		if _, ok := attributes[ausf_context.AT_RES_ATTRIBUTE]; !ok {
 			return nil, fmt.Errorf("AKA-Challenge attributes error")
 		} else if _, ok := attributes[ausf_context.AT_MAC_ATTRIBUTE]; !ok {
 			return nil, fmt.Errorf("AKA-Challenge attributes error")
 		}
 	case ausf_context.AKA_AUTHENTICATION_REJECT_SUBTYPE:
-		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Authentication-Reject\n")
+		logger.AuthELog.Tracef("Subtype AKA-Authentication-Reject\n")
 		if len(attributes) != 0 {
 			return nil, fmt.Errorf("AKA-Authentication-Reject attributes error")
 		}
 	case ausf_context.AKA_SYNCHRONIZATION_FAILURE_SUBTYPE:
-		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Synchronization-Failure\n")
+		logger.AuthELog.Tracef("Subtype AKA-Synchronization-Failure\n")
 		if len(attributes) != 2 {
 			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
 		} else if _, ok := attributes[ausf_context.AT_AUTS_ATTRIBUTE]; !ok {
@@ -282,16 +282,16 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 			return nil, fmt.Errorf("AKA-Synchornization-Failure attributes error")
 		}
 	case ausf_context.AKA_NOTIFICATION_SUBTYPE:
-		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Notification\n")
+		logger.AuthELog.Tracef("Subtype AKA-Notification\n")
 	case ausf_context.AKA_CLIENT_ERROR_SUBTYPE:
-		logger.EapAuthComfirmLog.Tracef("Subtype AKA-Client-Error\n")
+		logger.AuthELog.Tracef("Subtype AKA-Client-Error\n")
 		if len(attributes) != 1 {
 			return nil, fmt.Errorf("AKA-Client-Error attributes error")
 		} else if _, ok := attributes[ausf_context.AT_CLIENT_ERROR_CODE_ATTRIBUTE]; !ok {
 			return nil, fmt.Errorf("AKA-Client-Error attributes error")
 		}
 	default:
-		logger.EapAuthComfirmLog.Tracef("subtype %x skipped\n", decodePkt.Subtype)
+		logger.AuthELog.Tracef("subtype %x skipped\n", decodePkt.Subtype)
 	}
 
 	decodePkt.Attributes = attributes
@@ -312,7 +312,7 @@ func ConstructFailEapAkaNotification(oldPktId uint8) string {
 	attribute := attrNum + "01" + "4000"
 	var attrHex []byte
 	if attrHexTmp, err := hex.DecodeString(attribute); err != nil {
-		logger.EapAuthComfirmLog.Warnf("Decode attribute failed: %+v", err)
+		logger.AuthELog.Warnf("Decode attribute failed: %+v", err)
 	} else {
 		attrHex = attrHexTmp
 	}
@@ -337,7 +337,7 @@ func getUdmUrl(nrfUri string) string {
 	}
 	res, err := consumer.SendSearchNFInstances(nrfUri, models.NfType_UDM, models.NfType_AUSF, nfDiscoverParam)
 	if err != nil {
-		logger.UeAuthPostLog.Errorln("[Search UDM UEAU] ", err.Error())
+		logger.UeAuthLog.Errorln("[Search UDM UEAU] ", err.Error())
 	} else if len(res.NfInstances) > 0 {
 		udmInstance := res.NfInstances[0]
 		if len(udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil {
@@ -346,7 +346,7 @@ func getUdmUrl(nrfUri string) string {
 			udmUrl = string(ueauService.Scheme) + "://" + ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(int(ueauEndPoint.Port))
 		}
 	} else {
-		logger.UeAuthPostLog.Errorln("[Search UDM UEAU] len(NfInstances) = 0")
+		logger.UeAuthLog.Errorln("[Search UDM UEAU] len(NfInstances) = 0")
 	}
 	return udmUrl
 }
@@ -383,14 +383,14 @@ func sendAuthResultToUDM(id string, authType models.AuthType, success bool, serv
 
 func logConfirmFailureAndInformUDM(id string, authType models.AuthType, servingNetworkName, errStr, udmUrl string) {
 	if authType == models.AuthType__5_G_AKA {
-		logger.Auth5gAkaComfirmLog.Infoln(errStr)
+		logger.Auth5gAkaLog.Infoln(errStr)
 		if sendErr := sendAuthResultToUDM(id, authType, false, "", udmUrl); sendErr != nil {
-			logger.Auth5gAkaComfirmLog.Infoln(sendErr.Error())
+			logger.Auth5gAkaLog.Infoln(sendErr.Error())
 		}
 	} else if authType == models.AuthType_EAP_AKA_PRIME {
-		logger.EapAuthComfirmLog.Infoln(errStr)
+		logger.AuthELog.Infoln(errStr)
 		if sendErr := sendAuthResultToUDM(id, authType, false, "", udmUrl); sendErr != nil {
-			logger.EapAuthComfirmLog.Infoln(sendErr.Error())
+			logger.AuthELog.Infoln(sendErr.Error())
 		}
 	}
 }
