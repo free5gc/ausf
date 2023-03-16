@@ -83,8 +83,8 @@ func (a *AusfApp) Start(tlsKeyLogPath string) {
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 	ueauthentication.AddService(router)
 
-	pemPath := factory.AusfDefaultTLSPemPath
-	keyPath := factory.AusfDefaultTLSKeyPath
+	pemPath := factory.AusfDefaultCertPemPath
+	keyPath := factory.AusfDefaultPrivateKeyPath
 	sbi := factory.AusfConfig.Configuration.Sbi
 	if sbi.Tls != nil {
 		pemPath = sbi.Tls.Pem

@@ -18,8 +18,8 @@ import (
 
 const (
 	AusfDefaultTLSKeyLogPath      = "./log/ausfsslkey.log"
-	AusfDefaultTLSPemPath         = "./config/TLS/ausf.pem"
-	AusfDefaultTLSKeyPath         = "./config/TLS/ausf.key"
+	AusfDefaultCertPemPath        = "./cert/ausf.pem"
+	AusfDefaultPrivateKeyPath     = "./cert/ausf.key"
 	AusfDefaultConfigPath         = "./config/ausfcfg.yaml"
 	AusfSbiDefaultIPv4            = "127.0.0.9"
 	AusfSbiDefaultPort            = 8000
