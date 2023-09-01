@@ -8,12 +8,15 @@ import (
 	"runtime/debug"
 	"syscall"
 
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 
+	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
+	"github.com/ShouheiNishi/openapi5g/commondata"
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/internal/sbi/consumer"
-	"github.com/free5gc/ausf/internal/sbi/ueauthentication"
+	"github.com/free5gc/ausf/internal/sbi/producer"
 	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/util/httpwrapper"
 	logger_util "github.com/free5gc/util/logger"
@@ -81,7 +84,28 @@ func (a *AusfApp) Start(tlsKeyLogPath string) {
 	logger.InitLog.Infoln("Server started")
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
-	ueauthentication.AddService(router)
+
+	// TODO: move to other package
+	errFunc := func(c *gin.Context, err error, status int) {
+		p := commondata.ProblemDetails{
+			Status: &status,
+		}
+		if err != nil {
+			detail := err.Error()
+			p.Detail = &detail
+		}
+		c.JSON(status, p)
+		c.Writer.Header().Set("Content-Type", "application/problem+json")
+	}
+
+	ausf_authentication.RegisterHandlersWithOptions(router, producer.NewServerAusfAuthentication(),
+		ausf_authentication.GinServerOptions{
+			BaseURL:      factory.AusfAuthResUriPrefix,
+			Middlewares:  nil,
+			ErrorHandler: errFunc,
+		})
+
+	// ueauthentication.AddService(router)
 
 	pemPath := factory.AusfDefaultCertPemPath
 	keyPath := factory.AusfDefaultPrivateKeyPath

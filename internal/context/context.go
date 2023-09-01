@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/ShouheiNishi/openapi5g/commondata"
+	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
 )
@@ -17,9 +19,9 @@ type AUSFContext struct {
 	RegisterIPv4         string
 	BindingIPv4          string
 	Url                  string
-	UriScheme            models.UriScheme
+	UriScheme            commondata.UriScheme
 	NrfUri               string
-	NfService            map[models.ServiceName]models.NfService
+	NfService            map[nrf_management.ServiceName]nrf_management.NFService
 	PlmnList             []models.PlmnId
 	UdmUeauUrl           string
 	snRegex              *regexp.Regexp

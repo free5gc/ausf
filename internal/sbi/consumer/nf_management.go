@@ -7,61 +7,78 @@ import (
 	"strings"
 	"time"
 
+	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/Nnrf_NFManagement"
 	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/util/httpclient"
+	"github.com/google/uuid"
 )
 
-func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile models.NfProfile, err error) {
-	profile.NfInstanceId = ausfContext.NfId
-	profile.NfType = models.NfType_AUSF
-	profile.NfStatus = models.NfStatus_REGISTERED
-	profile.Ipv4Addresses = append(profile.Ipv4Addresses, ausfContext.RegisterIPv4)
-	services := []models.NfService{}
+func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile nrf_management.NFProfile, err error) {
+	profile.NfInstanceId, err = uuid.Parse(ausfContext.NfId)
+	if err != nil {
+		return nrf_management.NFProfile{}, err
+	}
+	profile.NfType = nrf_management.NFTypeAUSF
+	profile.NfStatus = nrf_management.NFStatusREGISTERED
+	if profile.Ipv4Addresses == nil {
+		profile.Ipv4Addresses = &[]string{}
+	}
+	*profile.Ipv4Addresses = append(*profile.Ipv4Addresses, ausfContext.RegisterIPv4)
+	services := []nrf_management.NFService{}
 	for _, nfService := range ausfContext.NfService {
 		services = append(services, nfService)
 	}
 	if len(services) > 0 {
 		profile.NfServices = &services
 	}
-	var ausfInfo models.AusfInfo
-	ausfInfo.GroupId = ausfContext.GroupID
+	var ausfInfo nrf_management.AusfInfo
+	ausfInfo.GroupId = &ausfContext.GroupID
 	profile.AusfInfo = &ausfInfo
 	profile.PlmnList = &ausfContext.PlmnList
 	return
 }
 
 // func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile) (resouceNrfUri string,
-//    retrieveNfInstanceID string, err error) {
-func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile) (string, string, error) {
-	configuration := Nnrf_NFManagement.NewConfiguration()
-	configuration.SetBasePath(nrfUri)
-	client := Nnrf_NFManagement.NewAPIClient(configuration)
+//
+//	retrieveNfInstanceID string, err error) {
+func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile nrf_management.NFProfile) (string, string, error) {
+	uri := nrfUri + "/nnrf-nfm/v1"
+	client, err := nrf_management.NewClientWithResponses(uri, func(c *nrf_management.Client) error {
+		c.Client = httpclient.GetHttpClient(uri)
+		return nil
+	})
+	if err != nil {
+		return "", "", err
+	}
 
-	var res *http.Response
+	binNfInstanceId, err := uuid.Parse(nfInstanceId)
+	if err != nil {
+		return "", "", err
+	}
+	var res *nrf_management.RegisterNFInstanceResponse
 	for {
-		if _, resTmp, err := client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId,
-			profile); err != nil || resTmp == nil {
+		if resTmp, err := client.RegisterNFInstanceWithResponse(context.TODO(),
+			binNfInstanceId,
+			&nrf_management.RegisterNFInstanceParams{},
+			profile); err != nil {
+
 			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 			time.Sleep(2 * time.Second)
 			continue
 		} else {
 			res = resTmp
 		}
-		defer func() {
-			if resCloseErr := res.Body.Close(); resCloseErr != nil {
-				logger.ConsumerLog.Errorf("AUSF NFInstanceIDDocumentApi response body cannot close: %+v", resCloseErr)
-			}
-		}()
-		status := res.StatusCode
+		status := res.StatusCode()
 		if status == http.StatusOK {
 			// NFUpdate
 			break
 		} else if status == http.StatusCreated {
 			// NFRegister
-			resourceUri := res.Header.Get("Location")
+			resourceUri := res.HTTPResponse.Header.Get("Location")
 			resourceNrfUri := resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
 			retrieveNfInstanceID := resourceUri[strings.LastIndex(resourceUri, "/")+1:]
 			return resourceNrfUri, retrieveNfInstanceID, nil
