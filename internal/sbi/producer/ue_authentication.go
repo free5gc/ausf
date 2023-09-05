@@ -34,26 +34,41 @@ func NewServerAusfAuthentication() ausf_authentication.ServerInterface {
 type ausfAuthenticationStrictServerInterface struct {
 }
 
+// TODO: move to other package
+func GetNotImplementedProblemDetails(status int) commondata.ProblemDetails {
+	return commondata.ProblemDetails{
+		Cause:  lo.ToPtr("NOT_IMPLEMENTED"),
+		Detail: lo.ToPtr("not implemented"),
+		Status: lo.ToPtr(status),
+	}
+}
+
 // (POST /rg-authentications)
 func (s ausfAuthenticationStrictServerInterface) PostRgAuthentications(ctx context.Context, request ausf_authentication.PostRgAuthenticationsRequestObject) (ausf_authentication.PostRgAuthenticationsResponseObject, error) {
-	panic("not implemented") // TODO: Implement
+	return ausf_authentication.PostRgAuthentications400ApplicationProblemPlusJSONResponse(GetNotImplementedProblemDetails(400)), nil
 }
 
 // (POST /ue-authentications/deregister)
 func (s ausfAuthenticationStrictServerInterface) PostUeAuthenticationsDeregister(ctx context.Context, request ausf_authentication.PostUeAuthenticationsDeregisterRequestObject) (ausf_authentication.PostUeAuthenticationsDeregisterResponseObject, error) {
-	panic("not implemented") // TODO: Implement
+	return ausf_authentication.PostUeAuthenticationsDeregister404ApplicationProblemPlusJSONResponse{
+		N404ApplicationProblemPlusJSONResponse: commondata.N404ApplicationProblemPlusJSONResponse(GetNotImplementedProblemDetails(404)),
+	}, nil
 }
 
 // Deletes the authentication result in the UDM
 // (DELETE /ue-authentications/{authCtxId}/5g-aka-confirmation)
 func (s ausfAuthenticationStrictServerInterface) Delete5gAkaAuthenticationResult(ctx context.Context, request ausf_authentication.Delete5gAkaAuthenticationResultRequestObject) (ausf_authentication.Delete5gAkaAuthenticationResultResponseObject, error) {
-	panic("not implemented") // TODO: Implement
+	return ausf_authentication.Delete5gAkaAuthenticationResult500ApplicationProblemPlusJSONResponse{
+		N500ApplicationProblemPlusJSONResponse: commondata.N500ApplicationProblemPlusJSONResponse(GetNotImplementedProblemDetails(500)),
+	}, nil
 }
 
 // Deletes the authentication result in the UDM
 // (DELETE /ue-authentications/{authCtxId}/eap-session)
 func (s ausfAuthenticationStrictServerInterface) DeleteEapAuthenticationResult(ctx context.Context, request ausf_authentication.DeleteEapAuthenticationResultRequestObject) (ausf_authentication.DeleteEapAuthenticationResultResponseObject, error) {
-	panic("not implemented") // TODO: Implement
+	return ausf_authentication.DeleteEapAuthenticationResult500ApplicationProblemPlusJSONResponse{
+		N500ApplicationProblemPlusJSONResponse: commondata.N500ApplicationProblemPlusJSONResponse(GetNotImplementedProblemDetails(500)),
+	}, nil
 }
 
 // // (POST /ue-authentications)
