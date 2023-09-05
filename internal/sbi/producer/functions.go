@@ -14,16 +14,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/antihax/optional"
 	"github.com/bronze1man/radius"
 	"github.com/google/uuid"
 
+	nrf_discovery "github.com/ShouheiNishi/openapi5g/nrf/discovery"
+	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
 	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/internal/sbi/consumer"
-	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
-	"github.com/free5gc/openapi/models"
 	"github.com/free5gc/util/httpclient"
 )
 
@@ -337,18 +336,20 @@ func ConstructEapNoTypePkt(code radius.EapCode, pktID uint8) string {
 
 func getUdmUrl(nrfUri string) string {
 	udmUrl := "https://localhost:29503" // default
-	nfDiscoverParam := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDM_UEAU}),
+	nfDiscoverParam := nrf_discovery.SearchNFInstancesParams{
+		ServiceNames: &[]nrf_management.ServiceName{nrf_management.NudmUeau},
 	}
-	res, err := consumer.SendSearchNFInstances(nrfUri, models.NfType_UDM, models.NfType_AUSF, nfDiscoverParam)
+	res, err := consumer.SendSearchNFInstances(nrfUri, nrf_management.NFTypeUDM, nrf_management.NFTypeAUSF, nfDiscoverParam)
 	if err != nil {
 		logger.UeAuthLog.Errorln("[Search UDM UEAU] ", err.Error())
 	} else if len(res.NfInstances) > 0 {
 		udmInstance := res.NfInstances[0]
-		if len(udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil {
+		if udmInstance.Ipv4Addresses != nil && len(*udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil && len(*udmInstance.NfServices) > 0 {
 			ueauService := (*udmInstance.NfServices)[0]
 			ueauEndPoint := (*ueauService.IpEndPoints)[0]
-			udmUrl = string(ueauService.Scheme) + "://" + ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(int(ueauEndPoint.Port))
+			if ueauEndPoint.Ipv4Address != nil && ueauEndPoint.Port != nil {
+				udmUrl = string(ueauService.Scheme) + "://" + *ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(*ueauEndPoint.Port)
+			}
 		}
 	} else {
 		logger.UeAuthLog.Errorln("[Search UDM UEAU] len(NfInstances) = 0")

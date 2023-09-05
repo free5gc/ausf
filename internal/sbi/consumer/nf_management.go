@@ -7,12 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ShouheiNishi/openapi5g/commondata"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi"
-	"github.com/free5gc/openapi/Nnrf_NFManagement"
-	"github.com/free5gc/openapi/models"
 	"github.com/free5gc/util/httpclient"
 	"github.com/google/uuid"
 )
@@ -90,29 +89,46 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile nrf_management.
 	return "", "", nil
 }
 
-func SendDeregisterNFInstance() (*models.ProblemDetails, error) {
+func SendDeregisterNFInstance() (*commondata.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("Send Deregister NFInstance")
 
 	ausfSelf := ausf_context.GetSelf()
 	// Set client and set url
-	configuration := Nnrf_NFManagement.NewConfiguration()
-	configuration.SetBasePath(ausfSelf.NrfUri)
-	client := Nnrf_NFManagement.NewAPIClient(configuration)
+	uri := ausfSelf.NrfUri + "/nnrf-nfm/v1"
+	client, err := nrf_management.NewClientWithResponses(uri, func(c *nrf_management.Client) error {
+		c.Client = httpclient.GetHttpClient(uri)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
-	res, err := client.NFInstanceIDDocumentApi.DeregisterNFInstance(context.Background(), ausfSelf.NfId)
+	binNfId, err := uuid.Parse(ausfSelf.NfId)
+	if err != nil {
+		return nil, err
+	}
+	res, err := client.DeregisterNFInstanceWithResponse(context.Background(), binNfId)
+	// TODO: remove if-return-else repeat
 	if err == nil {
 		return nil, err
-	} else if res != nil {
-		defer func() {
-			if resCloseErr := res.Body.Close(); resCloseErr != nil {
-				logger.ConsumerLog.Errorf("NFInstanceIDDocumentApi response body cannot close: %+v", resCloseErr)
-			}
-		}()
-		if res.Status != err.Error() {
-			return nil, err
-		}
-		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-		return &problem, err
+	} else if res.ApplicationproblemJSON400 != nil {
+		return res.ApplicationproblemJSON400, nil
+	} else if res.ApplicationproblemJSON401 != nil {
+		return res.ApplicationproblemJSON401, nil
+	} else if res.ApplicationproblemJSON403 != nil {
+		return res.ApplicationproblemJSON403, nil
+	} else if res.ApplicationproblemJSON404 != nil {
+		return res.ApplicationproblemJSON404, nil
+	} else if res.ApplicationproblemJSON411 != nil {
+		return res.ApplicationproblemJSON411, nil
+	} else if res.ApplicationproblemJSON429 != nil {
+		return res.ApplicationproblemJSON429, nil
+	} else if res.ApplicationproblemJSON500 != nil {
+		return res.ApplicationproblemJSON500, nil
+	} else if res.ApplicationproblemJSON501 != nil {
+		return res.ApplicationproblemJSON501, nil
+	} else if res.ApplicationproblemJSON503 != nil {
+		return res.ApplicationproblemJSON503, nil
 	} else {
 		return nil, openapi.ReportError("server no response")
 	}
