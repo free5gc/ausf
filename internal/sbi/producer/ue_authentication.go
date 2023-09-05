@@ -23,7 +23,6 @@ import (
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
-	"github.com/free5gc/openapi/models"
 	"github.com/free5gc/util/ueauth"
 )
 
@@ -207,7 +206,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.Aut
 	ueid := *authInfoResult.Supi
 	ausfUeContext := ausf_context.NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
-	ausfUeContext.AuthStatus = models.AuthResult_ONGOING
+	ausfUeContext.AuthStatus = ausf_authentication.AUTHENTICATIONONGOING
 	ausfUeContext.UdmUeauUrl = udmUrl
 	ausf_context.AddAusfUeContextToPool(ausfUeContext)
 
@@ -435,14 +434,14 @@ func (s ausfAuthenticationStrictServerInterface) PutUeAuthenticationsAuthCtxId5g
 	// Compare the received RES* with the stored XRES*
 	logger.Auth5gAkaLog.Infof("res*: %v\nXres*: %x\n", updateConfirmationData.ResStar, ausfCurrentContext.XresStar)
 	if updateConfirmationData.ResStar != nil && strings.EqualFold(*updateConfirmationData.ResStar, ausfCurrentContext.XresStar) {
-		ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
+		ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONSUCCESS
 		responseBody.AuthResult = ausf_authentication.AUTHENTICATIONSUCCESS
 		success = true
 		logger.Auth5gAkaLog.Infoln("5G AKA confirmation succeeded")
 		responseBody.Supi = &currentSupi
 		responseBody.Kseaf = &ausfCurrentContext.Kseaf
 	} else {
-		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+		ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONFAILURE
 		responseBody.AuthResult = ausf_authentication.AUTHENTICATIONFAILURE
 		logConfirmFailureAndInformUDM(ConfirmationDataResponseID, udm_ueau.AuthTypeN5GAKA, servingNetworkName,
 			"5G AKA confirmation failed", ausfCurrentContext.UdmUeauUrl)
@@ -489,7 +488,7 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 	ausfCurrentContext := ausf_context.GetAusfUeContext(currentSupi)
 	servingNetworkName := ausfCurrentContext.ServingNetworkName
 
-	if ausfCurrentContext.AuthStatus == models.AuthResult_FAILURE {
+	if ausfCurrentContext.AuthStatus == ausf_authentication.AUTHENTICATIONFAILURE {
 		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, 0)
 		responseBody.EapPayload = &eapFailPkt
 		responseBody.AuthResult = lo.ToPtr(ausf_authentication.AUTHENTICATIONFAILURE)
@@ -566,13 +565,13 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 					problemDetails.Status = lo.ToPtr(http.StatusInternalServerError)
 					return ausf_authentication.EapAuthMethod500ApplicationProblemPlusJSONResponse(problemDetails), nil
 				}
-				ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
+				ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONSUCCESS
 			} else {
 				eapOK = false
 				eapErrStr = "Wrong RES value, EAP-AKA' auth failed"
 			}
 		case ausf_context.AKA_AUTHENTICATION_REJECT_SUBTYPE:
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONFAILURE
 		case ausf_context.AKA_SYNCHRONIZATION_FAILURE_SUBTYPE:
 			logger.AuthELog.Warnf("EAP-AKA' synchronziation failure")
 			if ausfCurrentContext.Resynced {
@@ -618,12 +617,12 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 				responseBody.AuthResult = lo.ToPtr(ausf_authentication.AUTHENTICATIONONGOING)
 			}
 		case ausf_context.AKA_NOTIFICATION_SUBTYPE:
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONFAILURE
 		case ausf_context.AKA_CLIENT_ERROR_SUBTYPE:
 			logger.AuthELog.Warnf("EAP-AKA' failure: receive client-error")
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONFAILURE
 		default:
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONFAILURE
 		}
 	}
 
@@ -639,7 +638,7 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 			return ausf_authentication.EapAuthMethod500ApplicationProblemPlusJSONResponse(problemDetails), nil
 		}
 
-		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+		ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONFAILURE
 		responseBody.AuthResult = lo.ToPtr(ausf_authentication.AUTHENTICATIONONGOING)
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 		responseBody.EapPayload = &failEapAkaNoti
@@ -649,7 +648,7 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 		linksValue.FromLink(commondata.Link{Href: &linkUrl})
 		responseBody.Links = &map[string]commondata.LinksValueSchema{}
 		(*responseBody.Links)["eap-session"] = linksValue
-	} else if ausfCurrentContext.AuthStatus == models.AuthResult_FAILURE {
+	} else if ausfCurrentContext.AuthStatus == ausf_authentication.AUTHENTICATIONFAILURE {
 		if sendErr := sendAuthResultToUDM(eapSessionID, udm_ueau.AuthTypeEAPAKAPRIME, false, servingNetworkName,
 			ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())

@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"sync"
 
+	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
 	"github.com/ShouheiNishi/openapi5g/commondata"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
 	"github.com/free5gc/ausf/internal/logger"
@@ -33,7 +34,7 @@ type AusfUeContext struct {
 	Kausf              string
 	Kseaf              string
 	ServingNetworkName string
-	AuthStatus         models.AuthResult
+	AuthStatus         ausf_authentication.AuthResult
 	UdmUeauUrl         string
 
 	// for 5G AKA
