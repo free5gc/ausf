@@ -20,7 +20,7 @@ func InitAusfContext(context *AUSFContext) {
 	configuration := config.Configuration
 	sbi := configuration.Sbi
 
-	context.NfId = uuid.New().String()
+	context.NfId = uuid.New()
 	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
 	context.UriScheme = commondata.UriScheme(configuration.Sbi.Scheme) // default uri scheme
@@ -70,7 +70,7 @@ func AddNfServices(serviceMap *map[nrf_management.ServiceName]nrf_management.NFS
 	services := *serviceMap
 
 	// nausf-auth
-	nfService.ServiceInstanceId = context.NfId
+	nfService.ServiceInstanceId = context.NfId.String()
 	nfService.ServiceName = nrf_management.NausfAuth
 
 	var ipEndPoint nrf_management.IpEndPoint

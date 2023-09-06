@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/bronze1man/radius"
-	"github.com/google/uuid"
 
 	nrf_discovery "github.com/ShouheiNishi/openapi5g/nrf/discovery"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
@@ -375,11 +374,7 @@ func sendAuthResultToUDM(id string, authType udm_ueau.AuthType, success bool, se
 	authEvent.AuthType = authType
 	authEvent.Success = success
 	authEvent.ServingNetworkName = servingNetworkName
-	var err error
-	authEvent.NfInstanceId, err = uuid.Parse(self.GetSelfID())
-	if err != nil {
-		return err
-	}
+	authEvent.NfInstanceId = self.GetSelfID()
 
 	client, err := createClientToUdmUeau(udmUrl)
 	if err != nil {

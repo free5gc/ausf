@@ -7,6 +7,8 @@ import (
 	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
 	"github.com/ShouheiNishi/openapi5g/commondata"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
+	"github.com/google/uuid"
+
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
 )
@@ -14,7 +16,7 @@ import (
 type AUSFContext struct {
 	suciSupiMap          sync.Map
 	UePool               sync.Map
-	NfId                 string
+	NfId                 uuid.UUID
 	GroupID              string
 	SBIPort              int
 	RegisterIPv4         string
@@ -155,6 +157,6 @@ func GetSelf() *AUSFContext {
 	return &ausfContext
 }
 
-func (a *AUSFContext) GetSelfID() string {
+func (a *AUSFContext) GetSelfID() uuid.UUID {
 	return a.NfId
 }

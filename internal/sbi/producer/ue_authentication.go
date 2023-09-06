@@ -14,7 +14,6 @@ import (
 	"github.com/bronze1man/radius"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/google/uuid"
 	"github.com/samber/lo"
 
 	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
@@ -146,15 +145,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.Aut
 	responseBody.ServingNetworkName = &snName
 	authInfoReq.ServingNetworkName = snName
 	self := ausf_context.GetSelf()
-	var err error
-	authInfoReq.AusfInstanceId, err = uuid.Parse(self.GetSelfID())
-	if err != nil {
-		return nil, "", &commondata.ProblemDetails{
-			Cause:  lo.ToPtr("UUID_PARSE_FAIL"),
-			Detail: lo.ToPtr(err.Error()),
-			Status: lo.ToPtr(http.StatusInternalServerError),
-		}
-	}
+	authInfoReq.AusfInstanceId = self.GetSelfID()
 
 	var lastEapID uint8
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {

@@ -17,10 +17,7 @@ import (
 )
 
 func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile nrf_management.NFProfile, err error) {
-	profile.NfInstanceId, err = uuid.Parse(ausfContext.NfId)
-	if err != nil {
-		return nrf_management.NFProfile{}, err
-	}
+	profile.NfInstanceId = ausfContext.NfId
 	profile.NfType = nrf_management.NFTypeAUSF
 	profile.NfStatus = nrf_management.NFStatusREGISTERED
 	if profile.Ipv4Addresses == nil {
@@ -44,24 +41,20 @@ func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile nrf_managem
 // func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile) (resouceNrfUri string,
 //
 //	retrieveNfInstanceID string, err error) {
-func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile nrf_management.NFProfile) (string, string, error) {
+func SendRegisterNFInstance(nrfUri string, nfInstanceId uuid.UUID, profile nrf_management.NFProfile) (string, uuid.UUID, error) {
 	uri := nrfUri + "/nnrf-nfm/v1"
 	client, err := nrf_management.NewClientWithResponses(uri, func(c *nrf_management.Client) error {
 		c.Client = httpclient.GetHttpClient(uri)
 		return nil
 	})
 	if err != nil {
-		return "", "", err
+		return "", uuid.Nil, err
 	}
 
-	binNfInstanceId, err := uuid.Parse(nfInstanceId)
-	if err != nil {
-		return "", "", err
-	}
 	var res *nrf_management.RegisterNFInstanceResponse
 	for {
 		if resTmp, err := client.RegisterNFInstanceWithResponse(context.TODO(),
-			binNfInstanceId,
+			nfInstanceId,
 			&nrf_management.RegisterNFInstanceParams{},
 			profile); err != nil {
 
@@ -79,14 +72,17 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile nrf_management.
 			// NFRegister
 			resourceUri := res.HTTPResponse.Header.Get("Location")
 			resourceNrfUri := resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
-			retrieveNfInstanceID := resourceUri[strings.LastIndex(resourceUri, "/")+1:]
+			retrieveNfInstanceID, err := uuid.Parse(resourceUri[strings.LastIndex(resourceUri, "/")+1:])
+			if err != nil {
+				return "", uuid.Nil, err
+			}
 			return resourceNrfUri, retrieveNfInstanceID, nil
 		} else {
 			fmt.Println(fmt.Errorf("handler returned wrong status code %d", status))
 			fmt.Println(fmt.Errorf("NRF return wrong status code %d", status))
 		}
 	}
-	return "", "", nil
+	return "", uuid.Nil, nil
 }
 
 func SendDeregisterNFInstance() (*commondata.ProblemDetails, error) {
@@ -103,11 +99,7 @@ func SendDeregisterNFInstance() (*commondata.ProblemDetails, error) {
 		return nil, err
 	}
 
-	binNfId, err := uuid.Parse(ausfSelf.NfId)
-	if err != nil {
-		return nil, err
-	}
-	res, err := client.DeregisterNFInstanceWithResponse(context.Background(), binNfId)
+	res, err := client.DeregisterNFInstanceWithResponse(context.Background(), ausfSelf.NfId)
 	// TODO: remove if-return-else repeat
 	if err == nil {
 		return nil, err
