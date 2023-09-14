@@ -11,7 +11,6 @@ import (
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
-	"github.com/free5gc/openapi"
 	"github.com/free5gc/util/httpclient"
 	"github.com/google/uuid"
 )
@@ -122,6 +121,6 @@ func SendDeregisterNFInstance() (*commondata.ProblemDetails, error) {
 	} else if res.ApplicationproblemJSON503 != nil {
 		return res.ApplicationproblemJSON503, nil
 	} else {
-		return nil, openapi.ReportError("server no response")
+		return nil, fmt.Errorf("server no response")
 	}
 }
