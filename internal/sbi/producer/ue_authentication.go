@@ -11,14 +11,14 @@ import (
 	"strings"
 	"time"
 
+	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
+	"github.com/ShouheiNishi/openapi5g/commondata"
+	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
 	"github.com/bronze1man/radius"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/samber/lo"
 
-	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
-	"github.com/ShouheiNishi/openapi5g/commondata"
-	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
@@ -30,8 +30,7 @@ func NewServerAusfAuthentication() ausf_authentication.ServerInterface {
 }
 
 // s ausfAuthenticationStrictServerInterface ausf_authentication.StrictServerInterface
-type ausfAuthenticationStrictServerInterface struct {
-}
+type ausfAuthenticationStrictServerInterface struct{}
 
 // TODO: move to other package
 func GetNotImplementedProblemDetails(status int) commondata.ProblemDetails {
@@ -43,35 +42,49 @@ func GetNotImplementedProblemDetails(status int) commondata.ProblemDetails {
 }
 
 // (POST /rg-authentications)
-func (s ausfAuthenticationStrictServerInterface) PostRgAuthentications(ctx context.Context, request ausf_authentication.PostRgAuthenticationsRequestObject) (ausf_authentication.PostRgAuthenticationsResponseObject, error) {
-	return ausf_authentication.PostRgAuthentications400ApplicationProblemPlusJSONResponse(GetNotImplementedProblemDetails(400)), nil
+func (s ausfAuthenticationStrictServerInterface) PostRgAuthentications(ctx context.Context,
+	request ausf_authentication.PostRgAuthenticationsRequestObject,
+) (ausf_authentication.PostRgAuthenticationsResponseObject, error) {
+	return ausf_authentication.
+		PostRgAuthentications400ApplicationProblemPlusJSONResponse(GetNotImplementedProblemDetails(400)), nil
 }
 
 // (POST /ue-authentications/deregister)
-func (s ausfAuthenticationStrictServerInterface) PostUeAuthenticationsDeregister(ctx context.Context, request ausf_authentication.PostUeAuthenticationsDeregisterRequestObject) (ausf_authentication.PostUeAuthenticationsDeregisterResponseObject, error) {
+func (s ausfAuthenticationStrictServerInterface) PostUeAuthenticationsDeregister(ctx context.Context,
+	request ausf_authentication.PostUeAuthenticationsDeregisterRequestObject,
+) (ausf_authentication.PostUeAuthenticationsDeregisterResponseObject, error) {
 	return ausf_authentication.PostUeAuthenticationsDeregister404ApplicationProblemPlusJSONResponse{
-		N404ApplicationProblemPlusJSONResponse: commondata.N404ApplicationProblemPlusJSONResponse(GetNotImplementedProblemDetails(404)),
+		N404ApplicationProblemPlusJSONResponse: commondata.N404ApplicationProblemPlusJSONResponse(
+			GetNotImplementedProblemDetails(404)),
 	}, nil
 }
 
 // Deletes the authentication result in the UDM
 // (DELETE /ue-authentications/{authCtxId}/5g-aka-confirmation)
-func (s ausfAuthenticationStrictServerInterface) Delete5gAkaAuthenticationResult(ctx context.Context, request ausf_authentication.Delete5gAkaAuthenticationResultRequestObject) (ausf_authentication.Delete5gAkaAuthenticationResultResponseObject, error) {
+func (s ausfAuthenticationStrictServerInterface) Delete5gAkaAuthenticationResult(ctx context.Context,
+	request ausf_authentication.Delete5gAkaAuthenticationResultRequestObject,
+) (ausf_authentication.Delete5gAkaAuthenticationResultResponseObject, error) {
 	return ausf_authentication.Delete5gAkaAuthenticationResult500ApplicationProblemPlusJSONResponse{
-		N500ApplicationProblemPlusJSONResponse: commondata.N500ApplicationProblemPlusJSONResponse(GetNotImplementedProblemDetails(500)),
+		N500ApplicationProblemPlusJSONResponse: commondata.N500ApplicationProblemPlusJSONResponse(
+			GetNotImplementedProblemDetails(500)),
 	}, nil
 }
 
 // Deletes the authentication result in the UDM
 // (DELETE /ue-authentications/{authCtxId}/eap-session)
-func (s ausfAuthenticationStrictServerInterface) DeleteEapAuthenticationResult(ctx context.Context, request ausf_authentication.DeleteEapAuthenticationResultRequestObject) (ausf_authentication.DeleteEapAuthenticationResultResponseObject, error) {
+func (s ausfAuthenticationStrictServerInterface) DeleteEapAuthenticationResult(ctx context.Context,
+	request ausf_authentication.DeleteEapAuthenticationResultRequestObject,
+) (ausf_authentication.DeleteEapAuthenticationResultResponseObject, error) {
 	return ausf_authentication.DeleteEapAuthenticationResult500ApplicationProblemPlusJSONResponse{
-		N500ApplicationProblemPlusJSONResponse: commondata.N500ApplicationProblemPlusJSONResponse(GetNotImplementedProblemDetails(500)),
+		N500ApplicationProblemPlusJSONResponse: commondata.N500ApplicationProblemPlusJSONResponse(
+			GetNotImplementedProblemDetails(500)),
 	}, nil
 }
 
 // // (POST /ue-authentications)
-func (s ausfAuthenticationStrictServerInterface) PostUeAuthentications(ctx context.Context, request ausf_authentication.PostUeAuthenticationsRequestObject) (ausf_authentication.PostUeAuthenticationsResponseObject, error) {
+func (s ausfAuthenticationStrictServerInterface) PostUeAuthentications(ctx context.Context,
+	request ausf_authentication.PostUeAuthenticationsRequestObject,
+) (ausf_authentication.PostUeAuthenticationsResponseObject, error) {
 	logger.UeAuthLog.Infof("PostUeAuthentications")
 
 	if request.Body == nil {
@@ -123,8 +136,8 @@ func (s ausfAuthenticationStrictServerInterface) PostUeAuthentications(ctx conte
 // func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (
 //
 //	response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
-func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.AuthenticationInfo) (*ausf_authentication.UEAuthenticationCtx,
-	string, *commondata.ProblemDetails,
+func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.AuthenticationInfo,
+) (*ausf_authentication.UEAuthenticationCtx, string, *commondata.ProblemDetails,
 ) {
 	var responseBody ausf_authentication.UEAuthenticationCtx
 	var authInfoReq udm_ueau.AuthenticationInfoRequest
@@ -210,13 +223,15 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.Aut
 		logger.UeAuthLog.Infoln("Use 5G AKA auth method")
 		putLink += "/5g-aka-confirmation"
 
-		av5GHeAka, err := authInfoResult.AuthenticationVector.AsAv5GHeAka()
-		if err != nil {
+		var av5GHeAka udm_ueau.Av5GHeAka
+		if av5GHeAka_tmp, err := authInfoResult.AuthenticationVector.AsAv5GHeAka(); err != nil {
 			return nil, "", &commondata.ProblemDetails{
 				Cause:  lo.ToPtr("UDM_CLIENT_FAIL"),
 				Detail: lo.ToPtr(err.Error()),
 				Status: lo.ToPtr(http.StatusInternalServerError),
 			}
+		} else {
+			av5GHeAka = av5GHeAka_tmp
 		}
 
 		// Derive HXRES* from XRES*
@@ -274,10 +289,22 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.Aut
 		av5gAka.Rand = av5GHeAka.Rand
 		av5gAka.Autn = av5GHeAka.Autn
 		av5gAka.HxresStar = hxresStar
-		responseBody.N5gAuthData.FromAv5gAka(av5gAka)
+		if err := responseBody.N5gAuthData.FromAv5gAka(av5gAka); err != nil {
+			return nil, "", &commondata.ProblemDetails{
+				Cause:  lo.ToPtr("UDM_CLIENT_FAIL"),
+				Detail: lo.ToPtr(err.Error()),
+				Status: lo.ToPtr(http.StatusInternalServerError),
+			}
+		}
 
 		var linksValue commondata.LinksValueSchema
-		linksValue.FromLink(commondata.Link{Href: &putLink})
+		if err := linksValue.FromLink(commondata.Link{Href: &putLink}); err != nil {
+			return nil, "", &commondata.ProblemDetails{
+				Cause:  lo.ToPtr("UDM_CLIENT_FAIL"),
+				Detail: lo.ToPtr(err.Error()),
+				Status: lo.ToPtr(http.StatusInternalServerError),
+			}
+		}
 		responseBody.Links = make(map[string]commondata.LinksValueSchema)
 		responseBody.Links["5g-aka"] = linksValue
 	} else if authInfoResult.AuthType == udm_ueau.AuthTypeEAPAKAPRIME {
@@ -378,10 +405,22 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.Aut
 
 		eapPkt.Data = []byte(dataArrayAfterMAC)
 		encodedPktAfterMAC := eapPkt.Encode()
-		responseBody.N5gAuthData.FromEapPayload(base64.StdEncoding.EncodeToString(encodedPktAfterMAC))
+		if err := responseBody.N5gAuthData.FromEapPayload(base64.StdEncoding.EncodeToString(encodedPktAfterMAC)); err != nil {
+			return nil, "", &commondata.ProblemDetails{
+				Cause:  lo.ToPtr("UDM_CLIENT_FAIL"),
+				Detail: lo.ToPtr(err.Error()),
+				Status: lo.ToPtr(http.StatusInternalServerError),
+			}
+		}
 
 		var linksValue commondata.LinksValueSchema
-		linksValue.FromLink(commondata.Link{Href: &putLink})
+		if err := linksValue.FromLink(commondata.Link{Href: &putLink}); err != nil {
+			return nil, "", &commondata.ProblemDetails{
+				Cause:  lo.ToPtr("UDM_CLIENT_FAIL"),
+				Detail: lo.ToPtr(err.Error()),
+				Status: lo.ToPtr(http.StatusInternalServerError),
+			}
+		}
 		responseBody.Links = make(map[string]commondata.LinksValueSchema)
 		responseBody.Links["eap-session"] = linksValue
 	}
@@ -392,7 +431,9 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.Aut
 }
 
 // (PUT /ue-authentications/{authCtxId}/5g-aka-confirmation)
-func (s ausfAuthenticationStrictServerInterface) PutUeAuthenticationsAuthCtxId5gAkaConfirmation(ctx context.Context, request ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmationRequestObject) (ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmationResponseObject, error) {
+func (s ausfAuthenticationStrictServerInterface) PutUeAuthenticationsAuthCtxId5gAkaConfirmation(ctx context.Context,
+	request ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmationRequestObject,
+) (ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmationResponseObject, error) {
 	logger.Auth5gAkaLog.Infof("PutUeAuthenticationsAuthCtxId5gAkaConfirmation")
 	updateConfirmationData := request.Body
 	ConfirmationDataResponseID := request.AuthCtxId
@@ -407,7 +448,8 @@ func (s ausfAuthenticationStrictServerInterface) PutUeAuthenticationsAuthCtxId5g
 		var problemDetails commondata.ProblemDetails
 		problemDetails.Cause = lo.ToPtr("USER_NOT_FOUND")
 		problemDetails.Status = lo.ToPtr(http.StatusBadRequest)
-		return ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmation400ApplicationProblemPlusJSONResponse(problemDetails), nil
+		return ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmation400ApplicationProblemPlusJSONResponse(
+			problemDetails), nil
 	}
 
 	currentSupi := ausf_context.GetSupiFromSuciSupiMap(ConfirmationDataResponseID)
@@ -416,7 +458,8 @@ func (s ausfAuthenticationStrictServerInterface) PutUeAuthenticationsAuthCtxId5g
 		var problemDetails commondata.ProblemDetails
 		problemDetails.Cause = lo.ToPtr("USER_NOT_FOUND")
 		problemDetails.Status = lo.ToPtr(http.StatusBadRequest)
-		return ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmation400ApplicationProblemPlusJSONResponse(problemDetails), nil
+		return ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmation400ApplicationProblemPlusJSONResponse(
+			problemDetails), nil
 	}
 
 	ausfCurrentContext := ausf_context.GetAusfUeContext(currentSupi)
@@ -424,7 +467,8 @@ func (s ausfAuthenticationStrictServerInterface) PutUeAuthenticationsAuthCtxId5g
 
 	// Compare the received RES* with the stored XRES*
 	logger.Auth5gAkaLog.Infof("res*: %v\nXres*: %x\n", updateConfirmationData.ResStar, ausfCurrentContext.XresStar)
-	if updateConfirmationData.ResStar != nil && strings.EqualFold(*updateConfirmationData.ResStar, ausfCurrentContext.XresStar) {
+	if updateConfirmationData.ResStar != nil &&
+		strings.EqualFold(*updateConfirmationData.ResStar, ausfCurrentContext.XresStar) {
 		ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONSUCCESS
 		responseBody.AuthResult = ausf_authentication.AUTHENTICATIONSUCCESS
 		success = true
@@ -445,14 +489,17 @@ func (s ausfAuthenticationStrictServerInterface) PutUeAuthenticationsAuthCtxId5g
 		problemDetails.Status = lo.ToPtr(http.StatusInternalServerError)
 		problemDetails.Cause = lo.ToPtr("UPSTREAM_SERVER_ERROR")
 
-		return ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmation500ApplicationProblemPlusJSONResponse(problemDetails), nil
+		return ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmation500ApplicationProblemPlusJSONResponse(
+			problemDetails), nil
 	}
 
 	return ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmation200JSONResponse(responseBody), nil
 }
 
 // (POST /ue-authentications/{authCtxId}/eap-session)
-func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Context, request ausf_authentication.EapAuthMethodRequestObject) (ausf_authentication.EapAuthMethodResponseObject, error) {
+func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Context,
+	request ausf_authentication.EapAuthMethodRequestObject,
+) (ausf_authentication.EapAuthMethodResponseObject, error) {
 	logger.Auth5gAkaLog.Infof("EapAuthMethod")
 	updateEapSession := request.Body
 	eapSessionID := request.AuthCtxId
@@ -636,7 +683,9 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 		self := ausf_context.GetSelf()
 		linkUrl := self.Url + factory.AusfAuthResUriPrefix + "/ue-authentications/" + eapSessionID + "/eap-session"
 		var linksValue commondata.LinksValueSchema
-		linksValue.FromLink(commondata.Link{Href: &linkUrl})
+		if err := linksValue.FromLink(commondata.Link{Href: &linkUrl}); err != nil {
+			return nil, err
+		}
 		responseBody.Links = &map[string]commondata.LinksValueSchema{}
 		(*responseBody.Links)["eap-session"] = linksValue
 	} else if ausfCurrentContext.AuthStatus == ausf_authentication.AUTHENTICATIONFAILURE {

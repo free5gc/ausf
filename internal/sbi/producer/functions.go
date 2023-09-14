@@ -14,11 +14,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bronze1man/radius"
-
 	nrf_discovery "github.com/ShouheiNishi/openapi5g/nrf/discovery"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
 	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
+	"github.com/bronze1man/radius"
+
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/internal/sbi/consumer"
@@ -338,12 +338,14 @@ func getUdmUrl(nrfUri string) string {
 	nfDiscoverParam := nrf_discovery.SearchNFInstancesParams{
 		ServiceNames: &[]nrf_management.ServiceName{nrf_management.NudmUeau},
 	}
-	res, err := consumer.SendSearchNFInstances(nrfUri, nrf_management.NFTypeUDM, nrf_management.NFTypeAUSF, nfDiscoverParam)
+	res, err := consumer.SendSearchNFInstances(nrfUri,
+		nrf_management.NFTypeUDM, nrf_management.NFTypeAUSF, nfDiscoverParam)
 	if err != nil {
 		logger.UeAuthLog.Errorln("[Search UDM UEAU] ", err.Error())
 	} else if len(res.NfInstances) > 0 {
 		udmInstance := res.NfInstances[0]
-		if udmInstance.Ipv4Addresses != nil && len(*udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil && len(*udmInstance.NfServices) > 0 {
+		if udmInstance.Ipv4Addresses != nil && len(*udmInstance.Ipv4Addresses) > 0 &&
+			udmInstance.NfServices != nil && len(*udmInstance.NfServices) > 0 {
 			ueauService := (*udmInstance.NfServices)[0]
 			ueauEndPoint := (*ueauService.IpEndPoints)[0]
 			if ueauEndPoint.Ipv4Address != nil && ueauEndPoint.Port != nil {

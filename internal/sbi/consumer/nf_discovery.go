@@ -7,6 +7,7 @@ import (
 
 	nrf_discovery "github.com/ShouheiNishi/openapi5g/nrf/discovery"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
+
 	"github.com/free5gc/util/httpclient"
 )
 

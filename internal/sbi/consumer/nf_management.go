@@ -9,10 +9,11 @@ import (
 
 	"github.com/ShouheiNishi/openapi5g/commondata"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
+	"github.com/google/uuid"
+
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/util/httpclient"
-	"github.com/google/uuid"
 )
 
 func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile nrf_management.NFProfile, err error) {
@@ -40,7 +41,8 @@ func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile nrf_managem
 // func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile) (resouceNrfUri string,
 //
 //	retrieveNfInstanceID string, err error) {
-func SendRegisterNFInstance(nrfUri string, nfInstanceId uuid.UUID, profile nrf_management.NFProfile) (string, uuid.UUID, error) {
+func SendRegisterNFInstance(nrfUri string, nfInstanceId uuid.UUID, profile nrf_management.NFProfile,
+) (string, uuid.UUID, error) {
 	uri := nrfUri + "/nnrf-nfm/v1"
 	client, err := nrf_management.NewClientWithResponses(uri, func(c *nrf_management.Client) error {
 		c.Client = httpclient.GetHttpClient(uri)
@@ -56,7 +58,6 @@ func SendRegisterNFInstance(nrfUri string, nfInstanceId uuid.UUID, profile nrf_m
 			nfInstanceId,
 			&nrf_management.RegisterNFInstanceParams{},
 			profile); err != nil {
-
 			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 			time.Sleep(2 * time.Second)
 			continue

@@ -8,11 +8,11 @@ import (
 	"runtime/debug"
 	"syscall"
 
+	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
+	"github.com/ShouheiNishi/openapi5g/commondata"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 
-	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
-	"github.com/ShouheiNishi/openapi5g/commondata"
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/internal/sbi/consumer"
