@@ -76,7 +76,7 @@ func AddNfServices(serviceMap *map[nrf_management.ServiceName]nrf_management.NFS
 	nfService.ServiceName = nrf_management.NausfAuth
 
 	var ipEndPoint nrf_management.IpEndPoint
-	ipEndPoint.Ipv4Address = &context.RegisterIPv4
+	ipEndPoint.Ipv4Address = context.RegisterIPv4
 	ipEndPoint.Port = &context.SBIPort
 	ipEndPoints = append(ipEndPoints, ipEndPoint)
 
@@ -88,7 +88,7 @@ func AddNfServices(serviceMap *map[nrf_management.ServiceName]nrf_management.NFS
 	nfService.Scheme = context.UriScheme
 	nfService.NfServiceStatus = nrf_management.NFServiceStatusREGISTERED
 
-	nfService.IpEndPoints = &ipEndPoints
+	nfService.IpEndPoints = ipEndPoints
 	nfService.Versions = nfServiceVersions
 	services[nrf_management.NausfAuth] = nfService
 }

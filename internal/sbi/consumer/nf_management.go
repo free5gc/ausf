@@ -29,12 +29,12 @@ func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile nrf_managem
 		services = append(services, nfService)
 	}
 	if len(services) > 0 {
-		profile.NfServices = &services
+		profile.NfServices = services
 	}
 	var ausfInfo nrf_management.AusfInfo
 	ausfInfo.GroupId = &ausfContext.GroupID
 	profile.AusfInfo = &ausfInfo
-	profile.PlmnList = &ausfContext.PlmnList
+	profile.PlmnList = ausfContext.PlmnList
 	return
 }
 

@@ -155,7 +155,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.Aut
 	}
 	logger.UeAuthLog.Infoln("Serving network authorized")
 
-	responseBody.ServingNetworkName = &snName
+	responseBody.ServingNetworkName = snName
 	authInfoReq.ServingNetworkName = snName
 	self := ausf_context.GetSelf()
 	authInfoReq.AusfInstanceId = self.GetSelfID()
@@ -200,14 +200,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.Aut
 	}
 	authInfoResult := rsp.JSON200
 
-	if authInfoResult.Supi == nil {
-		return nil, "", &commondata.ProblemDetails{
-			Cause:  lo.ToPtr("UDM_CLIENT_FAIL"),
-			Detail: lo.ToPtr("no SUPI"),
-			Status: lo.ToPtr(http.StatusInternalServerError),
-		}
-	}
-	ueid := *authInfoResult.Supi
+	ueid := authInfoResult.Supi
 	ausfUeContext := ausf_context.NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
 	ausfUeContext.AuthStatus = ausf_authentication.AUTHENTICATIONONGOING
@@ -473,8 +466,8 @@ func (s ausfAuthenticationStrictServerInterface) PutUeAuthenticationsAuthCtxId5g
 		responseBody.AuthResult = ausf_authentication.AUTHENTICATIONSUCCESS
 		success = true
 		logger.Auth5gAkaLog.Infoln("5G AKA confirmation succeeded")
-		responseBody.Supi = &currentSupi
-		responseBody.Kseaf = &ausfCurrentContext.Kseaf
+		responseBody.Supi = currentSupi
+		responseBody.Kseaf = ausfCurrentContext.Kseaf
 	} else {
 		ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONFAILURE
 		responseBody.AuthResult = ausf_authentication.AUTHENTICATIONFAILURE
@@ -529,7 +522,7 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 	if ausfCurrentContext.AuthStatus == ausf_authentication.AUTHENTICATIONFAILURE {
 		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, 0)
 		responseBody.EapPayload = &eapFailPkt
-		responseBody.AuthResult = lo.ToPtr(ausf_authentication.AUTHENTICATIONFAILURE)
+		responseBody.AuthResult = ausf_authentication.AUTHENTICATIONFAILURE
 		return ausf_authentication.EapAuthMethod200JSONResponse(responseBody), nil
 	}
 
@@ -548,7 +541,7 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 	if eapContent == nil {
 		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, 0)
 		responseBody.EapPayload = &eapFailPkt
-		responseBody.AuthResult = lo.ToPtr(ausf_authentication.AUTHENTICATIONFAILURE)
+		responseBody.AuthResult = ausf_authentication.AUTHENTICATIONFAILURE
 		return ausf_authentication.EapAuthMethod200JSONResponse(responseBody), nil
 	}
 
@@ -585,9 +578,9 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 				eapErrStr = "EAP-AKA' integrity check fail"
 			} else if XRES == RES {
 				logger.AuthELog.Infoln("Correct RES value, EAP-AKA' auth succeed")
-				responseBody.KSeaf = &ausfCurrentContext.Kseaf
-				responseBody.Supi = &currentSupi
-				responseBody.AuthResult = lo.ToPtr(ausf_authentication.AUTHENTICATIONSUCCESS)
+				responseBody.KSeaf = ausfCurrentContext.Kseaf
+				responseBody.Supi = currentSupi
+				responseBody.AuthResult = ausf_authentication.AUTHENTICATIONSUCCESS
 				eapSuccPkt := ConstructEapNoTypePkt(radius.EapCodeSuccess, eapContent.Id)
 				responseBody.EapPayload = &eapSuccPkt
 				udmUrl := ausfCurrentContext.UdmUeauUrl
@@ -652,7 +645,7 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 				}
 				responseBody.EapPayload = &eapPayload
 				responseBody.Links = &response.Links
-				responseBody.AuthResult = lo.ToPtr(ausf_authentication.AUTHENTICATIONONGOING)
+				responseBody.AuthResult = ausf_authentication.AUTHENTICATIONONGOING
 			}
 		case ausf_context.AKA_NOTIFICATION_SUBTYPE:
 			ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONFAILURE
@@ -677,7 +670,7 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 		}
 
 		ausfCurrentContext.AuthStatus = ausf_authentication.AUTHENTICATIONFAILURE
-		responseBody.AuthResult = lo.ToPtr(ausf_authentication.AUTHENTICATIONONGOING)
+		responseBody.AuthResult = ausf_authentication.AUTHENTICATIONONGOING
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 		responseBody.EapPayload = &failEapAkaNoti
 		self := ausf_context.GetSelf()
@@ -701,7 +694,7 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 
 		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, eapPayload[1])
 		responseBody.EapPayload = &eapFailPkt
-		responseBody.AuthResult = lo.ToPtr(ausf_authentication.AUTHENTICATIONFAILURE)
+		responseBody.AuthResult = ausf_authentication.AUTHENTICATIONFAILURE
 	}
 
 	return ausf_authentication.EapAuthMethod200JSONResponse(responseBody), nil
