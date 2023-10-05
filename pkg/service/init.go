@@ -88,7 +88,7 @@ func (a *AusfApp) Start(tlsKeyLogPath string) {
 	// TODO: move to other package
 	errFunc := func(c *gin.Context, err error, status int) {
 		p := commondata.ProblemDetails{
-			Status: &status,
+			Status: status,
 		}
 		if err != nil {
 			detail := err.Error()
