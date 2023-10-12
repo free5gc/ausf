@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"hash"
 	"net/http"
@@ -17,6 +16,7 @@ import (
 	nrf_discovery "github.com/ShouheiNishi/openapi5g/nrf/discovery"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
 	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
+	utils_error "github.com/ShouheiNishi/openapi5g/utils/error"
 	"github.com/bronze1man/radius"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
@@ -383,11 +383,8 @@ func sendAuthResultToUDM(id string, authType udm_ueau.AuthType, success bool, se
 		return err
 	}
 	rsp, err := client.ConfirmAuthWithResponse(context.Background(), id, authEvent)
-	if err != nil {
-		return err
-	}
-	if rsp.StatusCode() != http.StatusCreated {
-		return errors.New(rsp.Status())
+	if err != nil || rsp.StatusCode() != http.StatusCreated {
+		return utils_error.ExtractAndWrapOpenAPIError("udm_ueau.ConfirmAuthWithResponse", rsp, err)
 	}
 	return nil
 }

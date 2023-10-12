@@ -14,6 +14,8 @@ import (
 	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
 	"github.com/ShouheiNishi/openapi5g/commondata"
 	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
+	utils_error "github.com/ShouheiNishi/openapi5g/utils/error"
+	"github.com/ShouheiNishi/openapi5g/utils/problem"
 	"github.com/bronze1man/radius"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -45,18 +47,16 @@ func GetNotImplementedProblemDetails(status int) commondata.ProblemDetails {
 func (s ausfAuthenticationStrictServerInterface) PostRgAuthentications(ctx context.Context,
 	request ausf_authentication.PostRgAuthenticationsRequestObject,
 ) (ausf_authentication.PostRgAuthenticationsResponseObject, error) {
-	return ausf_authentication.
-		PostRgAuthentications400ApplicationProblemPlusJSONResponse(GetNotImplementedProblemDetails(400)), nil
+	pd := problem.NotImplemented()
+	return ausf_authentication.PostRgAuthenticationsdefaultApplicationProblemPlusJSONResponse{StatusCode: pd.Status, Body: pd}, nil
 }
 
 // (POST /ue-authentications/deregister)
 func (s ausfAuthenticationStrictServerInterface) PostUeAuthenticationsDeregister(ctx context.Context,
 	request ausf_authentication.PostUeAuthenticationsDeregisterRequestObject,
 ) (ausf_authentication.PostUeAuthenticationsDeregisterResponseObject, error) {
-	return ausf_authentication.PostUeAuthenticationsDeregister404ApplicationProblemPlusJSONResponse{
-		N404ApplicationProblemPlusJSONResponse: commondata.N404ApplicationProblemPlusJSONResponse(
-			GetNotImplementedProblemDetails(404)),
-	}, nil
+	pd := problem.NotImplemented()
+	return ausf_authentication.PostUeAuthenticationsDeregisterdefaultApplicationProblemPlusJSONResponse{StatusCode: pd.Status, Body: pd}, nil
 }
 
 // Deletes the authentication result in the UDM
@@ -64,10 +64,8 @@ func (s ausfAuthenticationStrictServerInterface) PostUeAuthenticationsDeregister
 func (s ausfAuthenticationStrictServerInterface) Delete5gAkaAuthenticationResult(ctx context.Context,
 	request ausf_authentication.Delete5gAkaAuthenticationResultRequestObject,
 ) (ausf_authentication.Delete5gAkaAuthenticationResultResponseObject, error) {
-	return ausf_authentication.Delete5gAkaAuthenticationResult500ApplicationProblemPlusJSONResponse{
-		N500ApplicationProblemPlusJSONResponse: commondata.N500ApplicationProblemPlusJSONResponse(
-			GetNotImplementedProblemDetails(500)),
-	}, nil
+	pd := problem.NotImplemented()
+	return ausf_authentication.Delete5gAkaAuthenticationResultdefaultApplicationProblemPlusJSONResponse{StatusCode: pd.Status, Body: pd}, nil
 }
 
 // Deletes the authentication result in the UDM
@@ -75,10 +73,8 @@ func (s ausfAuthenticationStrictServerInterface) Delete5gAkaAuthenticationResult
 func (s ausfAuthenticationStrictServerInterface) DeleteEapAuthenticationResult(ctx context.Context,
 	request ausf_authentication.DeleteEapAuthenticationResultRequestObject,
 ) (ausf_authentication.DeleteEapAuthenticationResultResponseObject, error) {
-	return ausf_authentication.DeleteEapAuthenticationResult500ApplicationProblemPlusJSONResponse{
-		N500ApplicationProblemPlusJSONResponse: commondata.N500ApplicationProblemPlusJSONResponse(
-			GetNotImplementedProblemDetails(500)),
-	}, nil
+	pd := problem.NotImplemented()
+	return ausf_authentication.DeleteEapAuthenticationResultdefaultApplicationProblemPlusJSONResponse{StatusCode: pd.Status, Body: pd}, nil
 }
 
 // // (POST /ue-authentications)
@@ -106,21 +102,10 @@ func (s ausfAuthenticationStrictServerInterface) PostUeAuthentications(ctx conte
 			},
 		}, nil
 	} else if problemDetails != nil {
-		switch problemDetails.Status {
-		case 400:
-			return ausf_authentication.PostUeAuthentications400ApplicationProblemPlusJSONResponse(*problemDetails), nil
-		case 403:
-			return ausf_authentication.PostUeAuthentications403ApplicationProblemPlusJSONResponse(*problemDetails), nil
-		case 404:
-			return ausf_authentication.PostUeAuthentications404ApplicationProblemPlusJSONResponse(*problemDetails), nil
-		default:
-			problemDetails.Status = 500
-			fallthrough
-		case 500:
-			return ausf_authentication.PostUeAuthentications500ApplicationProblemPlusJSONResponse(*problemDetails), nil
-		case 501:
-			return ausf_authentication.PostUeAuthentications501ApplicationProblemPlusJSONResponse(*problemDetails), nil
-		}
+		return ausf_authentication.PostUeAuthenticationsdefaultApplicationProblemPlusJSONResponse{
+			StatusCode: problemDetails.Status,
+			Body:       *problemDetails,
+		}, nil
 	}
 	problemDetails = &commondata.ProblemDetails{
 		Status: http.StatusForbidden,
@@ -181,18 +166,10 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.Aut
 		}
 	}
 	rsp, err := client.GenerateAuthDataWithResponse(context.Background(), supiOrSuci, authInfoReq)
-	if err != nil {
-		return nil, "", &commondata.ProblemDetails{
-			Cause:  lo.ToPtr("UDM_CLIENT_FAIL"),
-			Detail: lo.ToPtr(err.Error()),
-			Status: http.StatusInternalServerError,
-		}
-	} else if rsp.JSON200 == nil {
-		return nil, "", &commondata.ProblemDetails{
-			Cause:  lo.ToPtr("UDM_CLIENT_FAIL"),
-			Detail: lo.ToPtr(rsp.Status()),
-			Status: http.StatusInternalServerError,
-		}
+	if err != nil || rsp.JSON200 == nil {
+		return nil, "", lo.ToPtr(utils_error.ErrorToProblemDetails(
+			utils_error.ExtractAndWrapOpenAPIError("udm_ueau.GenerateAuthDataWithResponse", rsp, err),
+		))
 	}
 	authInfoResult := rsp.JSON200
 
@@ -615,15 +592,10 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 				authInfo.ResynchronizationInfo = resynchronizationInfo
 				response, _, problemDetails := UeAuthPostRequestProcedure(authInfo)
 				if problemDetails != nil {
-					switch problemDetails.Status {
-					case 400:
-						return ausf_authentication.EapAuthMethod400ApplicationProblemPlusJSONResponse(*problemDetails), nil
-					default:
-						problemDetails.Status = 500
-						fallthrough
-					case 500:
-						return ausf_authentication.EapAuthMethod500ApplicationProblemPlusJSONResponse(*problemDetails), nil
-					}
+					return ausf_authentication.EapAuthMethoddefaultApplicationProblemPlusJSONResponse{
+						StatusCode: problemDetails.Status,
+						Body:       *problemDetails,
+					}, nil
 				}
 				ausfCurrentContext.Resynced = true
 
