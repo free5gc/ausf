@@ -15,10 +15,12 @@ import (
 	"github.com/ShouheiNishi/openapi5g/commondata"
 	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
 	utils_error "github.com/ShouheiNishi/openapi5g/utils/error"
+	"github.com/ShouheiNishi/openapi5g/utils/error/middleware"
 	"github.com/ShouheiNishi/openapi5g/utils/problem"
 	"github.com/bronze1man/radius"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	strictgin "github.com/oapi-codegen/runtime/strictmiddleware/gin"
 	"github.com/samber/lo"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
@@ -28,7 +30,7 @@ import (
 )
 
 func NewServerAusfAuthentication() ausf_authentication.ServerInterface {
-	return ausf_authentication.NewStrictHandler(ausfAuthenticationStrictServerInterface{}, nil)
+	return ausf_authentication.NewStrictHandler(ausfAuthenticationStrictServerInterface{}, []strictgin.StrictGinMiddlewareFunc{middleware.GinStrictServerMiddleware})
 }
 
 // s ausfAuthenticationStrictServerInterface ausf_authentication.StrictServerInterface
@@ -601,11 +603,7 @@ func (s ausfAuthenticationStrictServerInterface) EapAuthMethod(ctx context.Conte
 
 				eapPayload, err := response.N5gAuthData.AsEapPayload()
 				if err != nil {
-					var problemDetails commondata.ProblemDetails
-					problemDetails.Cause = lo.ToPtr("EAP_DECODE_ERROR")
-					problemDetails.Detail = lo.ToPtr(err.Error())
-					problemDetails.Status = http.StatusInternalServerError
-					return ausf_authentication.EapAuthMethod500ApplicationProblemPlusJSONResponse(problemDetails), nil
+					return nil, err
 				}
 				responseBody.EapPayload = &eapPayload
 				responseBody.Links = &response.Links

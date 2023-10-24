@@ -9,8 +9,7 @@ import (
 	"syscall"
 
 	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
-	"github.com/ShouheiNishi/openapi5g/commondata"
-	"github.com/gin-gonic/gin"
+	"github.com/ShouheiNishi/openapi5g/utils/error/middleware"
 	"github.com/sirupsen/logrus"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
@@ -85,27 +84,14 @@ func (a *AusfApp) Start(tlsKeyLogPath string) {
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 
-	// TODO: move to other package
-	errFunc := func(c *gin.Context, err error, status int) {
-		p := commondata.ProblemDetails{
-			Status: status,
-		}
-		if err != nil {
-			detail := err.Error()
-			p.Detail = &detail
-		}
-		c.JSON(status, p)
-		c.Writer.Header().Set("Content-Type", "application/problem+json")
-	}
-
+	router.Use(middleware.GinMiddleWare)
+	router.NoRoute(middleware.GinNotFoundHandler)
 	ausf_authentication.RegisterHandlersWithOptions(router, producer.NewServerAusfAuthentication(),
 		ausf_authentication.GinServerOptions{
 			BaseURL:      factory.AusfAuthResUriPrefix,
 			Middlewares:  nil,
-			ErrorHandler: errFunc,
+			ErrorHandler: middleware.GinServerErrorHandler,
 		})
-
-	// ueauthentication.AddService(router)
 
 	pemPath := factory.AusfDefaultCertPemPath
 	keyPath := factory.AusfDefaultPrivateKeyPath
