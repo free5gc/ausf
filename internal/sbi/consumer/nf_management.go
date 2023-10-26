@@ -17,7 +17,16 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func SendAccTokenReq(scope string) (oauth2.TokenSource, *models.ProblemDetails, error) {
+func GetTokenCtx(scope string) (context.Context, *models.ProblemDetails, error) {
+	tok, pd, err := sendAccTokenReq(scope)
+	if err != nil {
+		return nil, pd, err
+	}
+	return context.WithValue(context.Background(),
+		openapi.ContextOAuth2, tok), pd, nil
+}
+
+func sendAccTokenReq(scope string) (oauth2.TokenSource, *models.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("Send Access Token Request")
 	var client *Nnrf_AccessToken.APIClient
 	ausfSelf := ausf_context.GetSelf()
@@ -136,7 +145,7 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfil
 
 func SendDeregisterNFInstance() (*models.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("Send Deregister NFInstance")
-	tok, pd, err := SendAccTokenReq("nnrf-nfm")
+	ctx, pd, err := GetTokenCtx("nnrf-nfm")
 	if err != nil {
 		return pd, err
 	}
@@ -147,8 +156,6 @@ func SendDeregisterNFInstance() (*models.ProblemDetails, error) {
 	configuration.SetBasePath(ausfSelf.NrfUri)
 	client := Nnrf_NFManagement.NewAPIClient(configuration)
 
-	ctx := context.WithValue(context.Background(),
-		openapi.ContextOAuth2, tok)
 	res, err := client.NFInstanceIDDocumentApi.DeregisterNFInstance(ctx, ausfSelf.NfId)
 	if err == nil {
 		return nil, err
