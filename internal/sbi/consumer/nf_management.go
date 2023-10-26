@@ -10,6 +10,7 @@ import (
 	"github.com/antihax/optional"
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
+	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/Nnrf_AccessToken"
 	"github.com/free5gc/openapi/Nnrf_NFManagement"
@@ -18,12 +19,15 @@ import (
 )
 
 func GetTokenCtx(scope string) (context.Context, *models.ProblemDetails, error) {
-	tok, pd, err := sendAccTokenReq(scope)
-	if err != nil {
-		return nil, pd, err
+	if factory.AusfConfig.GetOAuth() {
+		tok, pd, err := sendAccTokenReq(scope)
+		if err != nil {
+			return nil, pd, err
+		}
+		return context.WithValue(context.Background(),
+			openapi.ContextOAuth2, tok), pd, nil
 	}
-	return context.WithValue(context.Background(),
-		openapi.ContextOAuth2, tok), pd, nil
+	return context.TODO(), nil, nil
 }
 
 func sendAccTokenReq(scope string) (oauth2.TokenSource, *models.ProblemDetails, error) {
