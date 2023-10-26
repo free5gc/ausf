@@ -11,6 +11,8 @@ import (
 type AUSFContext struct {
 	suciSupiMap          sync.Map
 	UePool               sync.Map
+	ClientMap            sync.Map
+	TokenMap             sync.Map
 	NfId                 string
 	GroupID              string
 	SBIPort              int
