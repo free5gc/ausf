@@ -15,7 +15,7 @@ func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfT
 	configuration := Nnrf_NFDiscovery.NewConfiguration()
 	configuration.SetBasePath(nrfUri)
 	client := Nnrf_NFDiscovery.NewAPIClient(configuration)
-	ctx, _, err := GetTokenCtx("nnrf-disc")
+	ctx, _, err := GetTokenCtx("nnrf-disc", "NRF")
 	if err != nil {
 		return nil, err
 	}

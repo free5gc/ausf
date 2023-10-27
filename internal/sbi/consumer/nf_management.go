@@ -18,9 +18,9 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func GetTokenCtx(scope string) (context.Context, *models.ProblemDetails, error) {
+func GetTokenCtx(scope, targetNF string) (context.Context, *models.ProblemDetails, error) {
 	if factory.AusfConfig.GetOAuth() {
-		tok, pd, err := sendAccTokenReq(scope)
+		tok, pd, err := sendAccTokenReq(scope, targetNF)
 		if err != nil {
 			return nil, pd, err
 		}
@@ -30,7 +30,7 @@ func GetTokenCtx(scope string) (context.Context, *models.ProblemDetails, error) 
 	return context.TODO(), nil, nil
 }
 
-func sendAccTokenReq(scope string) (oauth2.TokenSource, *models.ProblemDetails, error) {
+func sendAccTokenReq(scope, targetNF string) (oauth2.TokenSource, *models.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("Send Access Token Request")
 	var client *Nnrf_AccessToken.APIClient
 	ausfSelf := ausf_context.GetSelf()
@@ -62,7 +62,7 @@ func sendAccTokenReq(scope string) (oauth2.TokenSource, *models.ProblemDetails, 
 	tok, res, err := client.AccessTokenRequestApi.AccessTokenRequest(context.Background(), "client_credentials",
 		ausfSelf.NfId, scope, &Nnrf_AccessToken.AccessTokenRequestParamOpts{
 			NfType:       optional.NewInterface(models.NfType_AUSF),
-			TargetNfType: optional.NewInterface(models.NfType_NRF),
+			TargetNfType: optional.NewInterface(targetNF),
 		})
 	if err == nil {
 		ausfSelf.TokenMap.Store(scope, tok)
@@ -149,7 +149,7 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfil
 
 func SendDeregisterNFInstance() (*models.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("Send Deregister NFInstance")
-	ctx, pd, err := GetTokenCtx("nnrf-nfm")
+	ctx, pd, err := GetTokenCtx("nnrf-nfm", "NRF")
 	if err != nil {
 		return pd, err
 	}
