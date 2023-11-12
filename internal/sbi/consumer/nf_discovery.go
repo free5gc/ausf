@@ -20,8 +20,8 @@ func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfT
 		return nil, err
 	}
 
-	result, rsp, rspErr := client.NFInstancesStoreApi.SearchNFInstances(ctx,
-		targetNfType, requestNfType, &param)
+	result, rsp, rspErr := client.NFInstancesStoreApi.SearchNFInstances(
+		ctx, targetNfType, requestNfType, &param)
 	if rspErr != nil {
 		return nil, fmt.Errorf("NFInstancesStoreApi Response error: %+w", rspErr)
 	}

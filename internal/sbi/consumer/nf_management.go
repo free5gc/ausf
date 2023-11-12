@@ -7,21 +7,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/antihax/optional"
-
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi"
-	"github.com/free5gc/openapi/Nnrf_AccessToken"
 	"github.com/free5gc/openapi/Nnrf_NFManagement"
 	"github.com/free5gc/openapi/models"
-	"golang.org/x/oauth2"
+	"github.com/free5gc/openapi/oauth"
 )
 
 func GetTokenCtx(scope, targetNF string) (context.Context, *models.ProblemDetails, error) {
-	if factory.AusfConfig.GetOAuth() {
-		tok, pd, err := sendAccTokenReq(scope, targetNF)
+	ausfSelf := ausf_context.GetSelf()
+	cfg := factory.AusfConfig
+	if cfg.GetOAuth() {
+		tok, pd, err := oauth.SendAccTokenReq(
+			ausfSelf.NfId, models.NfType_AUSF,
+			scope, targetNF, ausfSelf.NrfUri)
 		if err != nil {
 			return nil, pd, err
 		}
@@ -29,64 +30,6 @@ func GetTokenCtx(scope, targetNF string) (context.Context, *models.ProblemDetail
 			openapi.ContextOAuth2, tok), pd, nil
 	}
 	return context.TODO(), nil, nil
-}
-
-func sendAccTokenReq(scope, targetNF string) (oauth2.TokenSource, *models.ProblemDetails, error) {
-	logger.ConsumerLog.Infof("Send Access Token Request")
-	var client *Nnrf_AccessToken.APIClient
-	ausfSelf := ausf_context.GetSelf()
-	// Set client and set url
-	configuration := Nnrf_AccessToken.NewConfiguration()
-	configuration.SetBasePath(ausfSelf.NrfUri)
-	if val, ok := ausfSelf.ClientMap.Load(configuration); ok {
-		client = val.(*Nnrf_AccessToken.APIClient)
-	} else {
-		client = Nnrf_AccessToken.NewAPIClient(configuration)
-		ausfSelf.ClientMap.Store(configuration, client)
-	}
-
-	var tok models.AccessTokenRsp
-
-	if val, ok := ausfSelf.TokenMap.Load(scope); ok {
-		tok = val.(models.AccessTokenRsp)
-		if int32(time.Now().Unix()) < tok.ExpiresIn {
-			logger.ConsumerLog.Infof("Token is not expired")
-			token := &oauth2.Token{
-				AccessToken: tok.AccessToken,
-				TokenType:   tok.TokenType,
-				Expiry:      time.Unix(int64(tok.ExpiresIn), 0),
-			}
-			return oauth2.StaticTokenSource(token), nil, nil
-		}
-	}
-
-	tok, res, err := client.AccessTokenRequestApi.AccessTokenRequest(context.Background(), "client_credentials",
-		ausfSelf.NfId, scope, &Nnrf_AccessToken.AccessTokenRequestParamOpts{
-			NfType:       optional.NewInterface(models.NfType_AUSF),
-			TargetNfType: optional.NewInterface(targetNF),
-		})
-	if err == nil {
-		ausfSelf.TokenMap.Store(scope, tok)
-		token := &oauth2.Token{
-			AccessToken: tok.AccessToken,
-			TokenType:   tok.TokenType,
-			Expiry:      time.Unix(int64(tok.ExpiresIn), 0),
-		}
-		return oauth2.StaticTokenSource(token), nil, err
-	} else if res != nil {
-		defer func() {
-			if resCloseErr := res.Body.Close(); resCloseErr != nil {
-				logger.ConsumerLog.Errorf("AccessTokenRequestApi response body cannot close: %+v", resCloseErr)
-			}
-		}()
-		if res.Status != err.Error() {
-			return nil, nil, err
-		}
-		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-		return nil, &problem, err
-	} else {
-		return nil, nil, openapi.ReportError("server no response")
-	}
 }
 
 func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile models.NfProfile, err error) {
