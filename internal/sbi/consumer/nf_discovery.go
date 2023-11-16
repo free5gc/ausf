@@ -1,7 +1,6 @@
 package consumer
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -13,11 +12,16 @@ import (
 func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType,
 	param Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
 ) (*models.SearchResult, error) {
+	ctx, _, err := GetTokenCtx("nnrf-disc", "NRF")
+	if err != nil {
+		return nil, err
+	}
+
 	configuration := Nnrf_NFDiscovery.NewConfiguration()
 	configuration.SetBasePath(nrfUri)
 	client := Nnrf_NFDiscovery.NewAPIClient(configuration)
 
-	result, rsp, rspErr := client.NFInstancesStoreApi.SearchNFInstances(context.TODO(),
+	result, rsp, rspErr := client.NFInstancesStoreApi.SearchNFInstances(ctx,
 		targetNfType, requestNfType, &param)
 	if rspErr != nil {
 		return nil, fmt.Errorf("NFInstancesStoreApi Response error: %+w", rspErr)

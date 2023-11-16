@@ -19,11 +19,13 @@ type AUSFContext struct {
 	Url                  string
 	UriScheme            models.UriScheme
 	NrfUri               string
+	NrfCerPem            string
 	NfService            map[models.ServiceName]models.NfService
 	PlmnList             []models.PlmnId
 	UdmUeauUrl           string
 	snRegex              *regexp.Regexp
 	EapAkaSupiImsiPrefix bool
+	OAuth2Required       bool
 }
 
 type AusfUeContext struct {
