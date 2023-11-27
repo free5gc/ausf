@@ -9,6 +9,7 @@ import (
 
 	"github.com/ShouheiNishi/openapi5g/commondata"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
+	"github.com/ShouheiNishi/openapi5g/utils/problem"
 	"github.com/google/uuid"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
@@ -97,28 +98,12 @@ func SendDeregisterNFInstance() (*commondata.ProblemDetails, error) {
 	}
 
 	res, err := client.DeregisterNFInstanceWithResponse(context.Background(), ausfSelf.NfId)
-	// TODO: remove if-return-else repeat
-	if err == nil {
-		return nil, err
-	} else if res.ApplicationproblemJSON400 != nil {
-		return res.ApplicationproblemJSON400, nil
-	} else if res.ApplicationproblemJSON401 != nil {
-		return res.ApplicationproblemJSON401, nil
-	} else if res.ApplicationproblemJSON403 != nil {
-		return res.ApplicationproblemJSON403, nil
-	} else if res.ApplicationproblemJSON404 != nil {
-		return res.ApplicationproblemJSON404, nil
-	} else if res.ApplicationproblemJSON411 != nil {
-		return res.ApplicationproblemJSON411, nil
-	} else if res.ApplicationproblemJSON429 != nil {
-		return res.ApplicationproblemJSON429, nil
-	} else if res.ApplicationproblemJSON500 != nil {
-		return res.ApplicationproblemJSON500, nil
-	} else if res.ApplicationproblemJSON501 != nil {
-		return res.ApplicationproblemJSON501, nil
-	} else if res.ApplicationproblemJSON503 != nil {
-		return res.ApplicationproblemJSON503, nil
-	} else {
-		return nil, fmt.Errorf("server no response")
+	if err != nil {
+		return nil, fmt.Errorf("nrf_management.DeregisterNFInstanceWithResponse: %w", err)
 	}
+	if res.StatusCode() != http.StatusNoContent {
+		_, pd, err := problem.ExtractStatusCodeAndProblemDetails(res)
+		return pd, err
+	}
+	return nil, nil
 }

@@ -2,11 +2,10 @@ package consumer
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 
 	nrf_discovery "github.com/ShouheiNishi/openapi5g/nrf/discovery"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
+	utils_error "github.com/ShouheiNishi/openapi5g/utils/error"
 
 	"github.com/free5gc/util/httpclient"
 )
@@ -25,13 +24,10 @@ func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType nrf_manage
 
 	param.TargetNfType = targetNfType
 	param.RequesterNfType = requestNfType
-	rsp, rspErr := client.SearchNFInstancesWithResponse(context.TODO(),
+	rsp, err := client.SearchNFInstancesWithResponse(context.TODO(),
 		&param)
-	if rspErr != nil {
-		return nil, fmt.Errorf("NFInstancesStoreApi Response error: %+w", rspErr)
-	}
-	if rsp != nil && rsp.StatusCode() == http.StatusTemporaryRedirect {
-		return nil, fmt.Errorf("Temporary Redirect For Non NRF Consumer")
+	if err != nil || rsp.JSON200 == nil {
+		return nil, utils_error.ExtractAndWrapOpenAPIError("nrf_discovery.SearchNFInstancesWithResponse", rsp, err)
 	}
 	return rsp.JSON200, nil
 }
