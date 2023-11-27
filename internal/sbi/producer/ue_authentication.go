@@ -36,15 +36,6 @@ func NewServerAusfAuthentication() ausf_authentication.ServerInterface {
 // s ausfAuthenticationStrictServerInterface ausf_authentication.StrictServerInterface
 type ausfAuthenticationStrictServerInterface struct{}
 
-// TODO: move to other package
-func GetNotImplementedProblemDetails(status int) commondata.ProblemDetails {
-	return commondata.ProblemDetails{
-		Cause:  lo.ToPtr("NOT_IMPLEMENTED"),
-		Detail: lo.ToPtr("not implemented"),
-		Status: status,
-	}
-}
-
 // (POST /rg-authentications)
 func (s ausfAuthenticationStrictServerInterface) PostRgAuthentications(ctx context.Context,
 	request ausf_authentication.PostRgAuthenticationsRequestObject,
