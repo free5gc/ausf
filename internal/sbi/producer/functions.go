@@ -344,12 +344,12 @@ func getUdmUrl(nrfUri string) string {
 		logger.UeAuthLog.Errorln("[Search UDM UEAU] ", err.Error())
 	} else if len(res.NfInstances) > 0 {
 		udmInstance := res.NfInstances[0]
-		if udmInstance.Ipv4Addresses != nil && len(*udmInstance.Ipv4Addresses) > 0 &&
-			udmInstance.NfServices != nil && len(*udmInstance.NfServices) > 0 {
-			ueauService := (*udmInstance.NfServices)[0]
-			ueauEndPoint := (*ueauService.IpEndPoints)[0]
-			if ueauEndPoint.Ipv4Address != nil && ueauEndPoint.Port != nil {
-				udmUrl = string(ueauService.Scheme) + "://" + *ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(*ueauEndPoint.Port)
+		if len(udmInstance.Ipv4Addresses) > 0 &&
+			len(udmInstance.NfServices) > 0 {
+			ueauService := (udmInstance.NfServices)[0]
+			ueauEndPoint := (ueauService.IpEndPoints)[0]
+			if ueauEndPoint.Port != nil {
+				udmUrl = string(ueauService.Scheme) + "://" + ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(*ueauEndPoint.Port)
 			}
 		}
 	} else {

@@ -20,10 +20,7 @@ func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile nrf_managem
 	profile.NfInstanceId = ausfContext.NfId
 	profile.NfType = nrf_management.NFTypeAUSF
 	profile.NfStatus = nrf_management.NFStatusREGISTERED
-	if profile.Ipv4Addresses == nil {
-		profile.Ipv4Addresses = &[]string{}
-	}
-	*profile.Ipv4Addresses = append(*profile.Ipv4Addresses, ausfContext.RegisterIPv4)
+	profile.Ipv4Addresses = append(profile.Ipv4Addresses, ausfContext.RegisterIPv4)
 	services := []nrf_management.NFService{}
 	for _, nfService := range ausfContext.NfService {
 		services = append(services, nfService)
