@@ -30,7 +30,8 @@ import (
 )
 
 func NewServerAusfAuthentication() ausf_authentication.ServerInterface {
-	return ausf_authentication.NewStrictHandler(ausfAuthenticationStrictServerInterface{}, []strictgin.StrictGinMiddlewareFunc{middleware.GinStrictServerMiddleware})
+	return ausf_authentication.NewStrictHandler(ausfAuthenticationStrictServerInterface{},
+		[]strictgin.StrictGinMiddlewareFunc{middleware.GinStrictServerMiddleware})
 }
 
 // s ausfAuthenticationStrictServerInterface ausf_authentication.StrictServerInterface
@@ -41,7 +42,10 @@ func (s ausfAuthenticationStrictServerInterface) PostRgAuthentications(ctx conte
 	request ausf_authentication.PostRgAuthenticationsRequestObject,
 ) (ausf_authentication.PostRgAuthenticationsResponseObject, error) {
 	pd := problem.NotImplemented()
-	return ausf_authentication.PostRgAuthenticationsdefaultApplicationProblemPlusJSONResponse{StatusCode: pd.Status, Body: pd}, nil
+	return ausf_authentication.PostRgAuthenticationsdefaultApplicationProblemPlusJSONResponse{
+		StatusCode: pd.Status,
+		Body:       pd,
+	}, nil
 }
 
 // (POST /ue-authentications/deregister)
@@ -49,7 +53,10 @@ func (s ausfAuthenticationStrictServerInterface) PostUeAuthenticationsDeregister
 	request ausf_authentication.PostUeAuthenticationsDeregisterRequestObject,
 ) (ausf_authentication.PostUeAuthenticationsDeregisterResponseObject, error) {
 	pd := problem.NotImplemented()
-	return ausf_authentication.PostUeAuthenticationsDeregisterdefaultApplicationProblemPlusJSONResponse{StatusCode: pd.Status, Body: pd}, nil
+	return ausf_authentication.PostUeAuthenticationsDeregisterdefaultApplicationProblemPlusJSONResponse{
+		StatusCode: pd.Status,
+		Body:       pd,
+	}, nil
 }
 
 // Deletes the authentication result in the UDM
@@ -58,7 +65,10 @@ func (s ausfAuthenticationStrictServerInterface) Delete5gAkaAuthenticationResult
 	request ausf_authentication.Delete5gAkaAuthenticationResultRequestObject,
 ) (ausf_authentication.Delete5gAkaAuthenticationResultResponseObject, error) {
 	pd := problem.NotImplemented()
-	return ausf_authentication.Delete5gAkaAuthenticationResultdefaultApplicationProblemPlusJSONResponse{StatusCode: pd.Status, Body: pd}, nil
+	return ausf_authentication.Delete5gAkaAuthenticationResultdefaultApplicationProblemPlusJSONResponse{
+		StatusCode: pd.Status,
+		Body:       pd,
+	}, nil
 }
 
 // Deletes the authentication result in the UDM
@@ -67,7 +77,10 @@ func (s ausfAuthenticationStrictServerInterface) DeleteEapAuthenticationResult(c
 	request ausf_authentication.DeleteEapAuthenticationResultRequestObject,
 ) (ausf_authentication.DeleteEapAuthenticationResultResponseObject, error) {
 	pd := problem.NotImplemented()
-	return ausf_authentication.DeleteEapAuthenticationResultdefaultApplicationProblemPlusJSONResponse{StatusCode: pd.Status, Body: pd}, nil
+	return ausf_authentication.DeleteEapAuthenticationResultdefaultApplicationProblemPlusJSONResponse{
+		StatusCode: pd.Status,
+		Body:       pd,
+	}, nil
 }
 
 // // (POST /ue-authentications)
