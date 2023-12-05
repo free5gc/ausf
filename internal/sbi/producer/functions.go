@@ -1,7 +1,6 @@
 package producer
 
 import (
-	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -372,8 +371,13 @@ func sendAuthResultToUDM(id string, authType models.AuthType, success bool, serv
 	authEvent.ServingNetworkName = servingNetworkName
 	authEvent.NfInstanceId = self.GetSelfID()
 
+	ctx, _, err := consumer.GetTokenCtx("nudm-ueau", "UDM")
+	if err != nil {
+		return err
+	}
+
 	client := createClientToUdmUeau(udmUrl)
-	_, rsp, confirmAuthErr := client.ConfirmAuthApi.ConfirmAuth(context.Background(), id, authEvent)
+	_, rsp, confirmAuthErr := client.ConfirmAuthApi.ConfirmAuth(ctx, id, authEvent)
 	defer func() {
 		if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
 			logger.ConsumerLog.Errorf("ConfirmAuth Response cannot close: %v", rspCloseErr)
