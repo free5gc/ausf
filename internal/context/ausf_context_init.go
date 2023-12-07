@@ -1,7 +1,6 @@
 package context
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 
@@ -61,7 +60,6 @@ func InitAusfContext(context *AUSFContext) {
 	// context.NfService
 	context.NfService = make(map[models.ServiceName]models.NfService)
 	AddNfServices(&context.NfService, config, context)
-	fmt.Println("ausf context = ", context)
 
 	context.EapAkaSupiImsiPrefix = configuration.EapAkaSupiImsiPrefix
 }
@@ -75,6 +73,15 @@ func AddNfServices(serviceMap *map[models.ServiceName]models.NfService, config *
 	// nausf-auth
 	nfService.ServiceInstanceId = context.NfId
 	nfService.ServiceName = models.ServiceName_NAUSF_AUTH
+
+	// AUSF only have nausf-auth function now
+	if len(config.Configuration.ServiceList[0].AllowedNfTypes) > 0 {
+		allowedNf := config.Configuration.ServiceList[0].AllowedNfTypes
+		nfService.AllowedNfTypes = make([]models.NfType, len(allowedNf))
+		for idx, nf := range allowedNf {
+			nfService.AllowedNfTypes[idx] = models.NfType(nf)
+		}
+	}
 
 	var ipEndPoint models.IpEndPoint
 	ipEndPoint.Ipv4Address = context.RegisterIPv4

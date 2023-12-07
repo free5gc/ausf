@@ -53,9 +53,14 @@ type Info struct {
 	Description string `yaml:"description,omitempty" valid:"type(string)"`
 }
 
+type ServiceList struct {
+	ServiceName    string   `yaml:"serviceName" valid:"required"`
+	AllowedNfTypes []string `yaml:"allowedNfTypes,omitempty" valid:"optional"`
+}
+
 type Configuration struct {
 	Sbi                  *Sbi            `yaml:"sbi,omitempty" valid:"required"`
-	ServiceNameList      []string        `yaml:"serviceNameList,omitempty" valid:"required"`
+	ServiceList          []ServiceList   `yaml:"serviceList" valid:"optional"`
 	NrfUri               string          `yaml:"nrfUri,omitempty" valid:"url,required"`
 	NrfCertPem           string          `yaml:"nrfCertPem,omitempty" valid:"type(string),minstringlength(1),optional"`
 	PlmnSupportList      []models.PlmnId `yaml:"plmnSupportList,omitempty" valid:"required"`
@@ -76,7 +81,8 @@ func (c *Configuration) validate() (bool, error) {
 		}
 	}
 
-	for index, serviceName := range c.ServiceNameList {
+	for index, service := range c.ServiceList {
+		serviceName := service.ServiceName
 		switch {
 		case serviceName == "nausf-auth":
 		default:

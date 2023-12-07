@@ -17,5 +17,9 @@ import (
 
 // SupiUeUpuPost -
 func SupiUeUpuPost(c *gin.Context) {
+	auth_err := authorizationCheck(c)
+	if auth_err != nil {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{})
 }

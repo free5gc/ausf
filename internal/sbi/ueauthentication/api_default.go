@@ -23,6 +23,11 @@ import (
 
 // HTTPEapAuthMethod -
 func HTTPEapAuthMethod(ctx *gin.Context) {
+	auth_err := authorizationCheck(ctx)
+	if auth_err != nil {
+		return
+	}
+
 	var eapSessionReq models.EapSession
 
 	requestBody, err := ctx.GetRawData()
@@ -72,6 +77,10 @@ func HTTPEapAuthMethod(ctx *gin.Context) {
 
 // HTTPUeAuthenticationsAuthCtxID5gAkaConfirmationPut -
 func HTTPUeAuthenticationsAuthCtxID5gAkaConfirmationPut(ctx *gin.Context) {
+	auth_err := authorizationCheck(ctx)
+	if auth_err != nil {
+		return
+	}
 	var confirmationData models.ConfirmationData
 
 	requestBody, err := ctx.GetRawData()
@@ -121,6 +130,10 @@ func HTTPUeAuthenticationsAuthCtxID5gAkaConfirmationPut(ctx *gin.Context) {
 
 // HTTPUeAuthenticationsPost -
 func HTTPUeAuthenticationsPost(ctx *gin.Context) {
+	auth_err := authorizationCheck(ctx)
+	if auth_err != nil {
+		return
+	}
 	var authInfo models.AuthenticationInfo
 
 	requestBody, err := ctx.GetRawData()
