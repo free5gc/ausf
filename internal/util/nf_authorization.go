@@ -7,12 +7,11 @@ import (
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/openapi/oauth"
-	"github.com/free5gc/udm/pkg/factory"
 )
 
 // This function would check the OAuth2 token, and the requestNF is in ServiceAllowNfType
 func AuthorizationCheck(c *gin.Context, serviceName string) error {
-	if factory.UdmConfig.GetOAuth() {
+	if ausf_context.GetSelf().OAuth2Required {
 		oauth_err := oauth.VerifyOAuth(c.Request.Header.Get("Authorization"), serviceName,
 			ausf_context.GetSelf().NrfCerPem)
 		if oauth_err != nil {
