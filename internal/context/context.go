@@ -19,7 +19,7 @@ type AUSFContext struct {
 	Url                  string
 	UriScheme            models.UriScheme
 	NrfUri               string
-	NrfCerPem            string
+	NrfCertPem           string
 	NfService            map[models.ServiceName]models.NfService
 	PlmnList             []models.PlmnId
 	UdmUeauUrl           string

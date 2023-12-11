@@ -22,8 +22,8 @@ func InitAusfContext(context *AUSFContext) {
 	context.NfId = uuid.New().String()
 	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
-	if configuration.NrfCerPem != "" {
-		context.NrfCerPem = configuration.NrfCerPem
+	if configuration.NrfCertPem != "" {
+		context.NrfCertPem = configuration.NrfCertPem
 	}
 
 	context.UriScheme = models.UriScheme(configuration.Sbi.Scheme) // default uri scheme
