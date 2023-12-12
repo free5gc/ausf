@@ -74,15 +74,6 @@ func AddNfServices(serviceMap *map[models.ServiceName]models.NfService, config *
 	nfService.ServiceInstanceId = context.NfId
 	nfService.ServiceName = models.ServiceName_NAUSF_AUTH
 
-	// AUSF only have nausf-auth function now
-	if len(config.Configuration.ServiceList[0].AllowedNfTypes) > 0 {
-		allowedNf := config.Configuration.ServiceList[0].AllowedNfTypes
-		nfService.AllowedNfTypes = make([]models.NfType, len(allowedNf))
-		for idx, nf := range allowedNf {
-			nfService.AllowedNfTypes[idx] = models.NfType(nf)
-		}
-	}
-
 	var ipEndPoint models.IpEndPoint
 	ipEndPoint.Ipv4Address = context.RegisterIPv4
 	ipEndPoint.Port = int32(context.SBIPort)
