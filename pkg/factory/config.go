@@ -57,7 +57,7 @@ type Configuration struct {
 	Sbi                  *Sbi            `yaml:"sbi,omitempty" valid:"required"`
 	ServiceNameList      []string        `yaml:"serviceNameList,omitempty" valid:"required"`
 	NrfUri               string          `yaml:"nrfUri,omitempty" valid:"url,required"`
-	NrfCertPem           string          `yaml:"nrfCertPem,omitempty" valid:"type(string),minstringlength(1),optional"`
+	NrfCertPem           string          `yaml:"nrfCertPem,omitempty" valid:"optional"`
 	PlmnSupportList      []models.PlmnId `yaml:"plmnSupportList,omitempty" valid:"required"`
 	GroupId              string          `yaml:"groupId,omitempty" valid:"type(string),minstringlength(1)"`
 	EapAkaSupiImsiPrefix bool            `yaml:"eapAkaSupiImsiPrefix,omitempty" valid:"type(bool),optional"`
