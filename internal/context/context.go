@@ -1,11 +1,13 @@
 package context
 
 import (
+	"context"
 	"regexp"
 	"sync"
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/openapi/oauth"
 )
 
 type AUSFContext struct {
@@ -156,4 +158,14 @@ func GetSelf() *AUSFContext {
 
 func (a *AUSFContext) GetSelfID() string {
 	return a.NfId
+}
+
+func (c *AUSFContext) GetTokenCtx(scope, targetNF string) (
+	context.Context, *models.ProblemDetails, error,
+) {
+	if !c.OAuth2Required {
+		return context.TODO(), nil, nil
+	}
+	return oauth.GetTokenCtx(models.NfType_AUSF,
+		c.NfId, c.NrfUri, scope, targetNF)
 }

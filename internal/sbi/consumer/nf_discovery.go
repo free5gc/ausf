@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
 	"github.com/free5gc/openapi/models"
@@ -12,7 +13,7 @@ import (
 func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType,
 	param Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
 ) (*models.SearchResult, error) {
-	ctx, _, err := GetTokenCtx("nnrf-disc", "NRF")
+	ctx, _, err := ausf_context.GetSelf().GetTokenCtx("nnrf-disc", "NRF")
 	if err != nil {
 		return nil, err
 	}

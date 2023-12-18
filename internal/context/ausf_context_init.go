@@ -22,10 +22,7 @@ func InitAusfContext(context *AUSFContext) {
 	context.NfId = uuid.New().String()
 	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
-	if configuration.NrfCertPem != "" {
-		context.NrfCertPem = configuration.NrfCertPem
-	}
-
+	context.NrfCertPem = configuration.NrfCertPem
 	context.UriScheme = models.UriScheme(configuration.Sbi.Scheme) // default uri scheme
 	context.RegisterIPv4 = factory.AusfSbiDefaultIPv4              // default localhost
 	context.SBIPort = factory.AusfSbiDefaultPort                   // default port

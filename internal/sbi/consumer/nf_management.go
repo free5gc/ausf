@@ -91,7 +91,7 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfil
 func SendDeregisterNFInstance() (*models.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("Send Deregister NFInstance")
 
-	ctx, pd, err := GetTokenCtx("nnrf-nfm", "NRF")
+	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx("nnrf-nfm", "NRF")
 	if err != nil {
 		return pd, err
 	}
