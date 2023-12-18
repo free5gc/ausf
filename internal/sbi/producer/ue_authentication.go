@@ -81,9 +81,8 @@ func HandleUeAuthPostRequest(request *httpwrapper.Request) *httpwrapper.Response
 	return httpwrapper.NewResponse(http.StatusForbidden, nil, problemDetails)
 }
 
-// func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (
-//
-//	response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
+// func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo,
+// ) (response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
 func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx,
 	string, *models.ProblemDetails,
 ) {

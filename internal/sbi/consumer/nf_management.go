@@ -33,9 +33,8 @@ func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile models.NfPr
 	return
 }
 
-// func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile) (resouceNrfUri string,
-//
-//	retrieveNfInstanceID string, err error) {
+// func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile,
+// ) (resouceNrfUri string,retrieveNfInstanceID string, err error) {
 func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile) (string, string, error) {
 	configuration := Nnrf_NFManagement.NewConfiguration()
 	configuration.SetBasePath(nrfUri)
