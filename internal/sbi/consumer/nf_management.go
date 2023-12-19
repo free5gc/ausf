@@ -33,8 +33,8 @@ func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile models.NfPr
 	return
 }
 
-// func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile) (resouceNrfUri string,
-//    retrieveNfInstanceID string, err error) {
+// func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile,
+// ) (resouceNrfUri string,retrieveNfInstanceID string, err error) {
 func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfile) (string, string, error) {
 	configuration := Nnrf_NFManagement.NewConfiguration()
 	configuration.SetBasePath(nrfUri)
@@ -42,8 +42,8 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfil
 
 	var res *http.Response
 	for {
-		if _, resTmp, err := client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId,
-			profile); err != nil || resTmp == nil {
+		nf, resTmp, err := client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId, profile)
+		if err != nil || resTmp == nil {
 			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 			time.Sleep(2 * time.Second)
 			continue
@@ -64,6 +64,20 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfil
 			resourceUri := res.Header.Get("Location")
 			resourceNrfUri := resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
 			retrieveNfInstanceID := resourceUri[strings.LastIndex(resourceUri, "/")+1:]
+
+			oauth2 := false
+			if nf.CustomInfo != nil {
+				v, ok := nf.CustomInfo["oauth2"].(bool)
+				if ok {
+					oauth2 = v
+					logger.MainLog.Infoln("OAuth2 setting receive from NRF:", oauth2)
+				}
+			}
+			ausf_context.GetSelf().OAuth2Required = oauth2
+			if oauth2 && ausf_context.GetSelf().NrfCertPem == "" {
+				logger.CfgLog.Error("OAuth2 enable but no nrfCertPem provided in config.")
+			}
+
 			return resourceNrfUri, retrieveNfInstanceID, nil
 		} else {
 			fmt.Println(fmt.Errorf("handler returned wrong status code %d", status))
@@ -76,13 +90,18 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfil
 func SendDeregisterNFInstance() (*models.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("Send Deregister NFInstance")
 
+	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx("nnrf-nfm", "NRF")
+	if err != nil {
+		return pd, err
+	}
+
 	ausfSelf := ausf_context.GetSelf()
 	// Set client and set url
 	configuration := Nnrf_NFManagement.NewConfiguration()
 	configuration.SetBasePath(ausfSelf.NrfUri)
 	client := Nnrf_NFManagement.NewAPIClient(configuration)
 
-	res, err := client.NFInstanceIDDocumentApi.DeregisterNFInstance(context.Background(), ausfSelf.NfId)
+	res, err := client.NFInstanceIDDocumentApi.DeregisterNFInstance(ctx, ausfSelf.NfId)
 	if err == nil {
 		return nil, err
 	} else if res != nil {
