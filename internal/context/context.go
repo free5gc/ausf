@@ -166,7 +166,9 @@ func (a *AUSFContext) GetSelfID() uuid.UUID {
 	return a.NfId
 }
 
-func (c *AUSFContext) GetTokenRequestEditor(ctx context.Context, scope string, targetNF nrf_management.NFType) (func(ctx context.Context, req *http.Request) error, error) {
+func (c *AUSFContext) GetTokenRequestEditor(ctx context.Context, scope string,
+	targetNF nrf_management.NFType,
+) (func(ctx context.Context, req *http.Request) error, error) {
 	if !c.OAuth2Required {
 		return func(ctx context.Context, req *http.Request) error {
 			return nil
