@@ -101,7 +101,8 @@ func SendDeregisterNFInstance() (*commondata.ProblemDetails, error) {
 
 	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx("nnrf-nfm", "NRF")
 	if err != nil {
-		return pd, err
+		_ = pd // XXX
+		return /* XXX pd */ nil, err
 	}
 
 	ausfSelf := ausf_context.GetSelf()

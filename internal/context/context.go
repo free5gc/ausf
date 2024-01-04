@@ -172,5 +172,5 @@ func (c *AUSFContext) GetTokenCtx(scope, targetNF string) (
 		return context.TODO(), nil, nil
 	}
 	return oauth.GetTokenCtx(models.NfType_AUSF,
-		c.NfId, c.NrfUri, scope, targetNF)
+		c.NfId.String(), c.NrfUri, scope, targetNF)
 }
