@@ -2,6 +2,7 @@ package context
 
 import (
 	"context"
+	"net/http"
 	"regexp"
 	"sync"
 
@@ -12,7 +13,7 @@ import (
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/openapi/oauth"
+	"github.com/free5gc/util/oauth2"
 )
 
 type AUSFContext struct {
@@ -165,12 +166,11 @@ func (a *AUSFContext) GetSelfID() uuid.UUID {
 	return a.NfId
 }
 
-func (c *AUSFContext) GetTokenCtx(scope, targetNF string) (
-	context.Context, *models.ProblemDetails, error,
-) {
+func (c *AUSFContext) GetTokenRequestEditor(ctx context.Context, scope string, targetNF nrf_management.NFType) (func(ctx context.Context, req *http.Request) error, error) {
 	if !c.OAuth2Required {
-		return context.TODO(), nil, nil
+		return func(ctx context.Context, req *http.Request) error {
+			return nil
+		}, nil
 	}
-	return oauth.GetTokenCtx(models.NfType_AUSF,
-		c.NfId.String(), c.NrfUri, scope, targetNF)
+	return oauth2.GetOauth2RequestEditor(ctx, nrf_management.NFTypeAUSF, c.NfId, c.NrfUri, scope, targetNF)
 }

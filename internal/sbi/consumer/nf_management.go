@@ -99,10 +99,9 @@ func SendRegisterNFInstance(nrfUri string, nfInstanceId uuid.UUID, profile nrf_m
 func SendDeregisterNFInstance() (*commondata.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("Send Deregister NFInstance")
 
-	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx("nnrf-nfm", "NRF")
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), "nnrf-nfm", nrf_management.NFTypeNRF)
 	if err != nil {
-		_ = pd // XXX
-		return /* XXX pd */ nil, err
+		return nil, err
 	}
 
 	ausfSelf := ausf_context.GetSelf()
@@ -111,12 +110,12 @@ func SendDeregisterNFInstance() (*commondata.ProblemDetails, error) {
 	client, err := nrf_management.NewClientWithResponses(uri, func(c *nrf_management.Client) error {
 		c.Client = httpclient.GetHttpClient(uri)
 		return nil
-	})
+	}, nrf_management.WithRequestEditorFn(editor))
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := client.DeregisterNFInstanceWithResponse(ctx, ausfSelf.NfId)
+	res, err := client.DeregisterNFInstanceWithResponse(context.Background(), ausfSelf.NfId)
 	if err != nil {
 		return nil, fmt.Errorf("nrf_management.DeregisterNFInstanceWithResponse: %w", err)
 	}
