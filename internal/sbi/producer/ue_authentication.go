@@ -120,9 +120,8 @@ func (s ausfAuthenticationStrictServerInterface) PostUeAuthentications(ctx conte
 	return ausf_authentication.PostUeAuthentications403ApplicationProblemPlusJSONResponse(*problemDetails), nil
 }
 
-// func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (
-//
-//	response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
+// func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo,
+// ) (response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
 func UeAuthPostRequestProcedure(updateAuthenticationInfo ausf_authentication.AuthenticationInfo,
 ) (*ausf_authentication.UEAuthenticationCtx, string, *commondata.ProblemDetails,
 ) {

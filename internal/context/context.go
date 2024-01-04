@@ -1,6 +1,7 @@
 package context
 
 import (
+	"context"
 	"regexp"
 	"sync"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/openapi/oauth"
 )
 
 type AUSFContext struct {
@@ -24,11 +26,13 @@ type AUSFContext struct {
 	Url                  string
 	UriScheme            commondata.UriScheme
 	NrfUri               string
+	NrfCertPem           string
 	NfService            map[nrf_management.ServiceName]nrf_management.NFService
 	PlmnList             []models.PlmnId
 	UdmUeauUrl           string
 	snRegex              *regexp.Regexp
 	EapAkaSupiImsiPrefix bool
+	OAuth2Required       bool
 }
 
 type AusfUeContext struct {
@@ -159,4 +163,14 @@ func GetSelf() *AUSFContext {
 
 func (a *AUSFContext) GetSelfID() uuid.UUID {
 	return a.NfId
+}
+
+func (c *AUSFContext) GetTokenCtx(scope, targetNF string) (
+	context.Context, *models.ProblemDetails, error,
+) {
+	if !c.OAuth2Required {
+		return context.TODO(), nil, nil
+	}
+	return oauth.GetTokenCtx(models.NfType_AUSF,
+		c.NfId, c.NrfUri, scope, targetNF)
 }

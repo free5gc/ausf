@@ -23,6 +23,7 @@ func InitAusfContext(context *AUSFContext) {
 	context.NfId = uuid.New()
 	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
+	context.NrfCertPem = configuration.NrfCertPem
 	context.UriScheme = commondata.UriScheme(configuration.Sbi.Scheme) // default uri scheme
 	context.RegisterIPv4 = factory.AusfSbiDefaultIPv4                  // default localhost
 	context.SBIPort = factory.AusfSbiDefaultPort                       // default port
