@@ -13,7 +13,7 @@ import (
 func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType,
 	param Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
 ) (*models.SearchResult, error) {
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx("nnrf-disc", "NRF")
+	ctx, _, err := ausf_context.GetSelf().GetTokenCtx("nnrf-disc", models.NfType_NRF)
 	if err != nil {
 		return nil, err
 	}

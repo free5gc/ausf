@@ -104,6 +104,13 @@ func Init() {
 	InitAusfContext(&ausfContext)
 }
 
+
+type NFContext interface {
+	AuthorizationCheck(token, serviceName string) error
+}
+
+var _ NFContext = &AUSFContext{}
+
 func NewAusfUeContext(identifier string) (ausfUeContext *AusfUeContext) {
 	ausfUeContext = new(AusfUeContext)
 	ausfUeContext.Supi = identifier // supi
@@ -160,12 +167,22 @@ func (a *AUSFContext) GetSelfID() string {
 	return a.NfId
 }
 
-func (c *AUSFContext) GetTokenCtx(scope, targetNF string) (
+func (c *AUSFContext) GetTokenCtx(scope string, targetNF model.NfType) (
 	context.Context, *models.ProblemDetails, error,
 ) {
 	if !c.OAuth2Required {
 		return context.TODO(), nil, nil
 	}
-	return oauth.GetTokenCtx(models.NfType_AUSF,
-		c.NfId, c.NrfUri, scope, targetNF)
+	return oauth.GetTokenCtx(models.NfType_AUSF, targetNF,
+		c.NfID, c.NrfUri, scope)
+}
+
+func (c *AUSFContext) AuthorizationCheck(token, serviceName string) error {
+	if !c.OAuth2Required {
+		logger.UtilLog.Debugf("AUSFContext::AuthorizationCheck: OAuth2 not required\n")
+		return nil
+	}
+
+	logger.UtilLog.Debugf("AUSFContext::AuthorizationCheck: token[%s] serviceName[%s]\n", token, serviceName)
+	return oauth.VerifyOAuth(token, serviceName, c.NrfCertPem)
 }
