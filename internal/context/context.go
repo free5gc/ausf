@@ -167,14 +167,14 @@ func (a *AUSFContext) GetSelfID() string {
 	return a.NfId
 }
 
-func (c *AUSFContext) GetTokenCtx(scope string, targetNF model.NfType) (
+func (c *AUSFContext) GetTokenCtx(scope string, targetNF models.NfType) (
 	context.Context, *models.ProblemDetails, error,
 ) {
 	if !c.OAuth2Required {
 		return context.TODO(), nil, nil
 	}
 	return oauth.GetTokenCtx(models.NfType_AUSF, targetNF,
-		c.NfID, c.NrfUri, scope)
+		c.NfId, c.NrfUri, scope)
 }
 
 func (c *AUSFContext) AuthorizationCheck(token, serviceName string) error {

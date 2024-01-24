@@ -22,8 +22,8 @@ func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfT
 	configuration.SetBasePath(nrfUri)
 	client := Nnrf_NFDiscovery.NewAPIClient(configuration)
 
-	result, rsp, rspErr := client.NFInstancesStoreApi.SearchNFInstances(ctx,
-		targetNfType, requestNfType, &param)
+	result, rsp, rspErr := client.NFInstancesStoreApi.SearchNFInstances(ctx, targetNfType, requestNfType, &param)
+
 	if rspErr != nil {
 		return nil, fmt.Errorf("NFInstancesStoreApi Response error: %+w", rspErr)
 	}

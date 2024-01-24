@@ -40,9 +40,14 @@ func SendRegisterNFInstance(nrfUri, nfInstanceId string, profile models.NfProfil
 	configuration.SetBasePath(nrfUri)
 	client := Nnrf_NFManagement.NewAPIClient(configuration)
 
+	ctx, _, err := ausf_context.GetSelf().GetTokenCtx("nnrf-nfm", models.NfType_NRF)
+	if err != nil {
+		return "", "", err
+	}
+
 	var res *http.Response
 	for {
-		nf, resTmp, err := client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), nfInstanceId, profile)
+		nf, resTmp, err := client.NFInstanceIDDocumentApi.RegisterNFInstance(ctx, nfInstanceId, profile)
 		if err != nil || resTmp == nil {
 			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 			time.Sleep(2 * time.Second)

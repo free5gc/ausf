@@ -12,13 +12,18 @@ package sorprotection
 import (
 	"net/http"
 	"strings"
-
+	
 	"github.com/gin-gonic/gin"
 
+	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
+	"github.com/free5gc/ausf/internal/util"
 	"github.com/free5gc/ausf/pkg/factory"
+	"github.com/free5gc/openapi/models"
 	logger_util "github.com/free5gc/util/logger"
 )
+
+const serviceName string = string(models.ServiceName_NAUSF_SORPROTECTION)
 
 // Route is the information for every URI.
 type Route struct {
@@ -44,6 +49,11 @@ func NewRouter() *gin.Engine {
 
 func AddService(engine *gin.Engine) *gin.RouterGroup {
 	group := engine.Group(factory.AusfSorprotectionResUriPrefix)
+
+	routerAuthorizationCheck := util.NewRouterAuthorizationCheck(serviceName)
+	group.Use(func(c *gin.Context) {
+		routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
+	})
 
 	for _, route := range routes {
 		switch route.Method {
