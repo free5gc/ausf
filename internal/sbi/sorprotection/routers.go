@@ -12,7 +12,7 @@ package sorprotection
 import (
 	"net/http"
 	"strings"
-	
+
 	"github.com/gin-gonic/gin"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"

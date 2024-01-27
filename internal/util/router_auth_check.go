@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-ausf_context "github.com/free5gc/ausf/internal/context"
+	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 )
 

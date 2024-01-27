@@ -18,7 +18,7 @@ var (
 	UeAuthLog    *logrus.Entry
 	Auth5gAkaLog *logrus.Entry
 	AuthELog     *logrus.Entry
-	UtilLog 	 *logrus.Entry
+	UtilLog      *logrus.Entry
 )
 
 func init() {

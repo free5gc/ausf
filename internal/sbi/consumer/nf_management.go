@@ -1,7 +1,6 @@
 package consumer
 
 import (
-
 	"fmt"
 	"net/http"
 	"strings"

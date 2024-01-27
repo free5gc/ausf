@@ -104,7 +104,6 @@ func Init() {
 	InitAusfContext(&ausfContext)
 }
 
-
 type NFContext interface {
 	AuthorizationCheck(token, serviceName string) error
 }
