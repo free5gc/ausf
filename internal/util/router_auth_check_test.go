@@ -7,6 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+
+	"github.com/free5gc/openapi/models"
 )
 
 const (
@@ -20,7 +22,7 @@ func newMockAUSFContext() *mockAUSFContext {
 	return &mockAUSFContext{}
 }
 
-func (m *mockAUSFContext) AuthorizationCheck(token string, serviceName string) error {
+func (m *mockAUSFContext) AuthorizationCheck(token string, serviceName models.ServiceName) error {
 	if token == Valid {
 		return nil
 	}
@@ -81,7 +83,7 @@ func TestRouterAuthorizationCheck_Check(t *testing.T) {
 			}
 			c.Request.Header.Set("Authorization", tt.args.token)
 
-			rac := NewRouterAuthorizationCheck("testService")
+			rac := NewRouterAuthorizationCheck(models.ServiceName("testService"))
 			rac.Check(c, newMockAUSFContext())
 			if w.Code != tt.want.statusCode {
 				t.Errorf("StatusCode should be %d, but got %d", tt.want.statusCode, w.Code)

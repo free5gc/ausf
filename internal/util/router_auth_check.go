@@ -7,13 +7,14 @@ import (
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
+	"github.com/free5gc/openapi/models"
 )
 
 type RouterAuthorizationCheck struct {
-	serviceName string
+	serviceName models.ServiceName
 }
 
-func NewRouterAuthorizationCheck(serviceName string) *RouterAuthorizationCheck {
+func NewRouterAuthorizationCheck(serviceName models.ServiceName) *RouterAuthorizationCheck {
 	return &RouterAuthorizationCheck{
 		serviceName: serviceName,
 	}

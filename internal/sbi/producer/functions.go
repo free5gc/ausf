@@ -372,7 +372,7 @@ func sendAuthResultToUDM(id string, authType models.AuthType, success bool, serv
 
 	client := createClientToUdmUeau(udmUrl)
 
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx("nudm-ueau", models.NfType_UDM)
+	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NUDM_UEAU, models.NfType_UDM)
 	if err != nil {
 		return err
 	}

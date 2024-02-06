@@ -124,7 +124,7 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 	udmUrl := getUdmUrl(self.NrfUri)
 	client := createClientToUdmUeau(udmUrl)
 
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx("nudm-ueau", models.NfType_UDM)
+	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NUDM_UEAU, models.NfType_UDM)
 	if err != nil {
 		return nil, "", nil
 	}
