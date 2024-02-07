@@ -13,7 +13,7 @@ import (
 func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType,
 	param Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
 ) (*models.SearchResult, error) {
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx("nnrf-disc", "NRF")
+	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_DISC, models.NfType_NRF)
 	if err != nil {
 		return nil, err
 	}
@@ -24,6 +24,7 @@ func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfT
 
 	result, rsp, rspErr := client.NFInstancesStoreApi.SearchNFInstances(ctx,
 		targetNfType, requestNfType, &param)
+
 	if rspErr != nil {
 		return nil, fmt.Errorf("NFInstancesStoreApi Response error: %+w", rspErr)
 	}

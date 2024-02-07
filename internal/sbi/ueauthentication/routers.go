@@ -15,8 +15,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
+	"github.com/free5gc/ausf/internal/util"
 	"github.com/free5gc/ausf/pkg/factory"
+	"github.com/free5gc/openapi/models"
 	logger_util "github.com/free5gc/util/logger"
 )
 
@@ -44,6 +47,11 @@ func NewRouter() *gin.Engine {
 
 func AddService(engine *gin.Engine) *gin.RouterGroup {
 	group := engine.Group(factory.AusfAuthResUriPrefix)
+
+	routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceName_NAUSF_AUTH)
+	group.Use(func(c *gin.Context) {
+		routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
+	})
 
 	for _, route := range routes {
 		switch route.Method {
