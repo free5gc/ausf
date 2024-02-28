@@ -41,10 +41,16 @@ func BuildNFInstance(ausfContext *ausf_context.AUSFContext) (profile nrf_managem
 func SendRegisterNFInstance(nrfUri string, nfInstanceId uuid.UUID, profile nrf_management.NFProfile,
 ) (string, uuid.UUID, error) {
 	uri := nrfUri + "/nnrf-nfm/v1"
+
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), nrf_management.NnrfNfm, nrf_management.NFTypeNRF)
+	if err != nil {
+		return "", uuid.Nil, err
+	}
+
 	client, err := nrf_management.NewClientWithResponses(uri, func(c *nrf_management.Client) error {
 		c.Client = httpclient.GetHttpClient(uri)
 		return nil
-	})
+	}, nrf_management.WithRequestEditorFn(editor))
 	if err != nil {
 		return "", uuid.Nil, err
 	}
@@ -99,7 +105,7 @@ func SendRegisterNFInstance(nrfUri string, nfInstanceId uuid.UUID, profile nrf_m
 func SendDeregisterNFInstance() (*commondata.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("Send Deregister NFInstance")
 
-	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), "nnrf-nfm", nrf_management.NFTypeNRF)
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), nrf_management.NnrfNfm, nrf_management.NFTypeNRF)
 	if err != nil {
 		return nil, err
 	}

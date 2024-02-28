@@ -13,6 +13,7 @@ import (
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/openapi/oauth"
 	"github.com/free5gc/util/oauth2"
 )
 
@@ -110,6 +111,12 @@ func Init() {
 	InitAusfContext(&ausfContext)
 }
 
+type NFContext interface {
+	AuthorizationCheck(token string, serviceName models.ServiceName) error
+}
+
+var _ NFContext = &AUSFContext{}
+
 func NewAusfUeContext(identifier string) (ausfUeContext *AusfUeContext) {
 	ausfUeContext = new(AusfUeContext)
 	ausfUeContext.Supi = identifier // supi
@@ -166,13 +173,23 @@ func (a *AUSFContext) GetSelfID() uuid.UUID {
 	return a.NfId
 }
 
-func (c *AUSFContext) GetTokenRequestEditor(ctx context.Context, scope string,
-	targetNF nrf_management.NFType,
+func (c *AUSFContext) GetTokenRequestEditor(ctx context.Context,
+	serviceName nrf_management.ServiceName, targetNF nrf_management.NFType,
 ) (func(ctx context.Context, req *http.Request) error, error) {
 	if !c.OAuth2Required {
 		return func(ctx context.Context, req *http.Request) error {
 			return nil
 		}, nil
 	}
-	return oauth2.GetOauth2RequestEditor(ctx, nrf_management.NFTypeAUSF, c.NfId, c.NrfUri, scope, targetNF)
+	return oauth2.GetOauth2RequestEditor(ctx, nrf_management.NFTypeAUSF, targetNF, c.NfId, c.NrfUri, string(serviceName))
+}
+
+func (c *AUSFContext) AuthorizationCheck(token string, serviceName models.ServiceName) error {
+	if !c.OAuth2Required {
+		logger.UtilLog.Debugf("AUSFContext::AuthorizationCheck: OAuth2 not required\n")
+		return nil
+	}
+
+	logger.UtilLog.Debugf("AUSFContext::AuthorizationCheck: token[%s] serviceName[%s]\n", token, serviceName)
+	return oauth.VerifyOAuth(token, string(serviceName), c.NrfCertPem)
 }

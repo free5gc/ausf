@@ -14,7 +14,7 @@ import (
 func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType nrf_management.NFType,
 	param nrf_discovery.SearchNFInstancesParams,
 ) (*nrf_discovery.SearchResult, error) {
-	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), "nnrf-disc", nrf_management.NFTypeNRF)
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), nrf_management.NnrfDisc, nrf_management.NFTypeNRF)
 	if err != nil {
 		return nil, err
 	}
@@ -32,6 +32,7 @@ func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType nrf_manage
 	param.RequesterNfType = requestNfType
 	rsp, err := client.SearchNFInstancesWithResponse(context.TODO(),
 		&param)
+
 	if err != nil || rsp.JSON200 == nil {
 		return nil, utils_error.ExtractAndWrapOpenAPIError("nrf_discovery.SearchNFInstancesWithResponse", rsp, err)
 	}

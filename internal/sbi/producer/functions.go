@@ -359,10 +359,16 @@ func getUdmUrl(nrfUri string) string {
 
 func createClientToUdmUeau(udmUrl string) (*udm_ueau.ClientWithResponses, error) {
 	uri := udmUrl + "/nudm-ueau/v1"
+
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), nrf_management.NudmUeau, nrf_management.NFTypeUDM)
+	if err != nil {
+		return nil, err
+	}
+
 	return udm_ueau.NewClientWithResponses(uri, func(c *udm_ueau.Client) error {
 		c.Client = httpclient.GetHttpClient(uri)
 		return nil
-	})
+	}, udm_ueau.WithRequestEditorFn(editor))
 }
 
 func sendAuthResultToUDM(id string, authType udm_ueau.AuthType, success bool, servingNetworkName, udmUrl string) error {
