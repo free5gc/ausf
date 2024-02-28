@@ -5,11 +5,12 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/ShouheiNishi/openapi5g/commondata"
+	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
 	"github.com/google/uuid"
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
-	"github.com/free5gc/openapi/models"
 )
 
 func InitAusfContext(context *AUSFContext) {
@@ -19,13 +20,13 @@ func InitAusfContext(context *AUSFContext) {
 	configuration := config.Configuration
 	sbi := configuration.Sbi
 
-	context.NfId = uuid.New().String()
+	context.NfId = uuid.New()
 	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
 	context.NrfCertPem = configuration.NrfCertPem
-	context.UriScheme = models.UriScheme(configuration.Sbi.Scheme) // default uri scheme
-	context.RegisterIPv4 = factory.AusfSbiDefaultIPv4              // default localhost
-	context.SBIPort = factory.AusfSbiDefaultPort                   // default port
+	context.UriScheme = commondata.UriScheme(configuration.Sbi.Scheme) // default uri scheme
+	context.RegisterIPv4 = factory.AusfSbiDefaultIPv4                  // default localhost
+	context.SBIPort = factory.AusfSbiDefaultPort                       // default port
 	if sbi != nil {
 		if sbi.RegisterIPv4 != "" {
 			context.RegisterIPv4 = sbi.RegisterIPv4
@@ -35,9 +36,9 @@ func InitAusfContext(context *AUSFContext) {
 		}
 
 		if sbi.Scheme == "https" {
-			context.UriScheme = models.UriScheme_HTTPS
+			context.UriScheme = commondata.Https
 		} else {
-			context.UriScheme = models.UriScheme_HTTP
+			context.UriScheme = commondata.Http
 		}
 
 		context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
@@ -56,37 +57,39 @@ func InitAusfContext(context *AUSFContext) {
 	context.PlmnList = append(context.PlmnList, configuration.PlmnSupportList...)
 
 	// context.NfService
-	context.NfService = make(map[models.ServiceName]models.NfService)
+	context.NfService = make(map[nrf_management.ServiceName]nrf_management.NFService)
 	AddNfServices(&context.NfService, config, context)
 	fmt.Println("ausf context = ", context)
 
 	context.EapAkaSupiImsiPrefix = configuration.EapAkaSupiImsiPrefix
 }
 
-func AddNfServices(serviceMap *map[models.ServiceName]models.NfService, config *factory.Config, context *AUSFContext) {
-	var nfService models.NfService
-	var ipEndPoints []models.IpEndPoint
-	var nfServiceVersions []models.NfServiceVersion
+func AddNfServices(serviceMap *map[nrf_management.ServiceName]nrf_management.NFService, config *factory.Config,
+	context *AUSFContext,
+) {
+	var nfService nrf_management.NFService
+	var ipEndPoints []nrf_management.IpEndPoint
+	var nfServiceVersions []nrf_management.NFServiceVersion
 	services := *serviceMap
 
 	// nausf-auth
-	nfService.ServiceInstanceId = context.NfId
-	nfService.ServiceName = models.ServiceName_NAUSF_AUTH
+	nfService.ServiceInstanceId = context.NfId.String()
+	nfService.ServiceName = nrf_management.NausfAuth
 
-	var ipEndPoint models.IpEndPoint
+	var ipEndPoint nrf_management.IpEndPoint
 	ipEndPoint.Ipv4Address = context.RegisterIPv4
-	ipEndPoint.Port = int32(context.SBIPort)
+	ipEndPoint.Port = &context.SBIPort
 	ipEndPoints = append(ipEndPoints, ipEndPoint)
 
-	var nfServiceVersion models.NfServiceVersion
+	var nfServiceVersion nrf_management.NFServiceVersion
 	nfServiceVersion.ApiFullVersion = config.Info.Version
 	nfServiceVersion.ApiVersionInUri = "v1"
 	nfServiceVersions = append(nfServiceVersions, nfServiceVersion)
 
 	nfService.Scheme = context.UriScheme
-	nfService.NfServiceStatus = models.NfServiceStatus_REGISTERED
+	nfService.NfServiceStatus = nrf_management.NFServiceStatusREGISTERED
 
-	nfService.IpEndPoints = &ipEndPoints
-	nfService.Versions = &nfServiceVersions
-	services[models.ServiceName_NAUSF_AUTH] = nfService
+	nfService.IpEndPoints = ipEndPoints
+	nfService.Versions = nfServiceVersions
+	services[nrf_management.NausfAuth] = nfService
 }

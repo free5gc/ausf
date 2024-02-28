@@ -1,40 +1,40 @@
 package consumer
 
 import (
-	"fmt"
-	"net/http"
+	"context"
+
+	nrf_discovery "github.com/ShouheiNishi/openapi5g/nrf/discovery"
+	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
+	utils_error "github.com/ShouheiNishi/openapi5g/utils/error"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
-	"github.com/free5gc/ausf/internal/logger"
-	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
-	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/util/httpclient"
 )
 
-func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType models.NfType,
-	param Nnrf_NFDiscovery.SearchNFInstancesParamOpts,
-) (*models.SearchResult, error) {
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_DISC, models.NfType_NRF)
+func SendSearchNFInstances(nrfUri string, targetNfType, requestNfType nrf_management.NFType,
+	param nrf_discovery.SearchNFInstancesParams,
+) (*nrf_discovery.SearchResult, error) {
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), nrf_management.NnrfDisc, nrf_management.NFTypeNRF)
 	if err != nil {
 		return nil, err
 	}
 
-	configuration := Nnrf_NFDiscovery.NewConfiguration()
-	configuration.SetBasePath(nrfUri)
-	client := Nnrf_NFDiscovery.NewAPIClient(configuration)
-
-	result, rsp, rspErr := client.NFInstancesStoreApi.SearchNFInstances(ctx,
-		targetNfType, requestNfType, &param)
-
-	if rspErr != nil {
-		return nil, fmt.Errorf("NFInstancesStoreApi Response error: %+w", rspErr)
+	uri := nrfUri + "/nnrf-disc/v1"
+	client, err := nrf_discovery.NewClientWithResponses(uri, func(c *nrf_discovery.Client) error {
+		c.Client = httpclient.GetHttpClient(uri)
+		return nil
+	}, nrf_discovery.WithRequestEditorFn(editor))
+	if err != nil {
+		return nil, err
 	}
-	defer func() {
-		if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-			logger.ConsumerLog.Errorf("NFInstancesStoreApi Response cannot close: %v", rspCloseErr)
-		}
-	}()
-	if rsp != nil && rsp.StatusCode == http.StatusTemporaryRedirect {
-		return nil, fmt.Errorf("Temporary Redirect For Non NRF Consumer")
+
+	param.TargetNfType = targetNfType
+	param.RequesterNfType = requestNfType
+	rsp, err := client.SearchNFInstancesWithResponse(context.TODO(),
+		&param)
+
+	if err != nil || rsp.JSON200 == nil {
+		return nil, utils_error.ExtractAndWrapOpenAPIError("nrf_discovery.SearchNFInstancesWithResponse", rsp, err)
 	}
-	return &result, nil
+	return rsp.JSON200, nil
 }

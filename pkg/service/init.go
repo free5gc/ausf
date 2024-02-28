@@ -8,13 +8,18 @@ import (
 	"runtime/debug"
 	"syscall"
 
+	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
+	"github.com/ShouheiNishi/openapi5g/utils/error/middleware"
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/internal/sbi/consumer"
-	"github.com/free5gc/ausf/internal/sbi/ueauthentication"
+	"github.com/free5gc/ausf/internal/sbi/producer"
+	"github.com/free5gc/ausf/internal/util"
 	"github.com/free5gc/ausf/pkg/factory"
+	"github.com/free5gc/openapi/models"
 	"github.com/free5gc/util/httpwrapper"
 	logger_util "github.com/free5gc/util/logger"
 )
@@ -81,7 +86,20 @@ func (a *AusfApp) Start(tlsKeyLogPath string) {
 	logger.InitLog.Infoln("Server started")
 
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
-	ueauthentication.AddService(router)
+
+	router.Use(middleware.GinMiddleWare)
+	router.NoRoute(middleware.GinNotFoundHandler)
+	routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceName_NAUSF_AUTH)
+	ausf_authentication.RegisterHandlersWithOptions(router, producer.NewServerAusfAuthentication(),
+		ausf_authentication.GinServerOptions{
+			BaseURL: factory.AusfAuthResUriPrefix,
+			Middlewares: []ausf_authentication.MiddlewareFunc{
+				func(c *gin.Context) {
+					routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
+				},
+			},
+			ErrorHandler: middleware.GinServerErrorHandler,
+		})
 
 	pemPath := factory.AusfDefaultCertPemPath
 	keyPath := factory.AusfDefaultPrivateKeyPath
