@@ -262,8 +262,9 @@ func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationIn
 		var eapPkt radius.EapPacket
 		eapPkt.Code = radius.EapCode(1)
 		if updateAuthenticationInfo.ResynchronizationInfo == nil {
-			rand.Seed(time.Now().Unix())
-			randIdentifier := rand.Intn(256)
+			src := rand.NewSource(time.Now().UnixNano())
+			r := rand.New(src)
+			randIdentifier := r.Intn(256)
 			ausfUeContext.EapID = uint8(randIdentifier)
 		} else {
 			ausfUeContext.EapID = lastEapID + 1

@@ -2,7 +2,7 @@ package service
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -39,7 +39,7 @@ func (a *AusfApp) SetLogEnable(enable bool) {
 	logger.MainLog.Infof("Log enable is set to [%v]", enable)
 	if enable && logger.Log.Out == os.Stderr {
 		return
-	} else if !enable && logger.Log.Out == ioutil.Discard {
+	} else if !enable && logger.Log.Out == io.Discard {
 		return
 	}
 
@@ -47,7 +47,7 @@ func (a *AusfApp) SetLogEnable(enable bool) {
 	if enable {
 		logger.Log.SetOutput(os.Stderr)
 	} else {
-		logger.Log.SetOutput(ioutil.Discard)
+		logger.Log.SetOutput(io.Discard)
 	}
 }
 
