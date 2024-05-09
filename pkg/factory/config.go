@@ -7,6 +7,7 @@ package factory
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"sync"
 
@@ -234,4 +235,57 @@ func (c *Config) GetLogReportCaller() bool {
 		return false
 	}
 	return c.Logger.ReportCaller
+}
+
+func (c *Config) GetSbiBindingAddr() string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.GetSbiBindingIP() + ":" + strconv.Itoa(c.GetSbiPort())
+}
+
+func (c *Config) GetSbiBindingIP() string {
+	c.RLock()
+	defer c.RUnlock()
+	bindIP := "0.0.0.0"
+	if c.Configuration == nil || c.Configuration.Sbi == nil {
+		return bindIP
+	}
+	if c.Configuration.Sbi.BindingIPv4 != "" {
+		if bindIP = os.Getenv(c.Configuration.Sbi.BindingIPv4); bindIP != "" {
+			logger.CfgLog.Infof("Parsing ServerIPv4 [%s] from ENV Variable", bindIP)
+		} else {
+			bindIP = c.Configuration.Sbi.BindingIPv4
+		}
+	}
+	return bindIP
+}
+
+func (c *Config) GetSbiPort() int {
+	c.RLock()
+	defer c.RUnlock()
+	if c.Configuration != nil && c.Configuration.Sbi != nil && c.Configuration.Sbi.Port != 0 {
+		return c.Configuration.Sbi.Port
+	}
+	return AusfSbiDefaultPort
+}
+
+func (c *Config) GetSbiScheme() string {
+	c.RLock()
+	defer c.RUnlock()
+	if c.Configuration != nil && c.Configuration.Sbi != nil && c.Configuration.Sbi.Scheme != "" {
+		return c.Configuration.Sbi.Scheme
+	}
+	return AusfSbiDefaultScheme
+}
+
+func (c *Config) GetCertPemPath() string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.Configuration.Sbi.Tls.Pem
+}
+
+func (c *Config) GetCertKeyPath() string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.Configuration.Sbi.Tls.Key
 }
