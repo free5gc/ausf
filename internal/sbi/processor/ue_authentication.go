@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/antihax/optional"
 	"github.com/bronze1man/radius"
 	"github.com/gin-gonic/gin"
 	"github.com/google/gopacket"
@@ -22,15 +23,12 @@ import (
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
-	"github.com/free5gc/ausf/pkg/factory"
-	"github.com/free5gc/openapi/models"
-	"github.com/free5gc/util/ueauth"
-
-	"github.com/antihax/optional"
-
 	"github.com/free5gc/ausf/internal/sbi/consumer"
+	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
 	Nudm_UEAU "github.com/free5gc/openapi/Nudm_UEAuthentication"
+	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/util/ueauth"
 )
 
 func (p *Processor) HandleEapAuthComfirmRequest(c *gin.Context, eapSession models.EapSession, eapSessionId string) {
@@ -73,7 +71,11 @@ func (p *Processor) HandleUeAuthPostRequest(c *gin.Context, authenticationInfo m
 	c.JSON(int(problemDetails.Status), problemDetails)
 }
 
-func (p *Processor) HandleAuth5gAkaComfirmRequest(c *gin.Context, confirmationData models.ConfirmationData, confirmationDataResponseId string) {
+func (p *Processor) HandleAuth5gAkaComfirmRequest(
+	c *gin.Context,
+	confirmationData models.ConfirmationData,
+	confirmationDataResponseId string,
+) {
 	logger.Auth5gAkaLog.Infof("Auth5gAkaComfirmRequest")
 
 	response, problemDetails := p.Auth5gAkaComfirmRequestProcedure(confirmationData, confirmationDataResponseId)
@@ -94,9 +96,9 @@ func (p *Processor) HandleAuth5gAkaComfirmRequest(c *gin.Context, confirmationDa
 
 // func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo,
 // ) (response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
-func (p *Processor) UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo) (*models.UeAuthenticationCtx,
-	string, *models.ProblemDetails,
-) {
+func (p *Processor) UeAuthPostRequestProcedure(
+	updateAuthenticationInfo models.AuthenticationInfo,
+) (*models.UeAuthenticationCtx, string, *models.ProblemDetails) {
 	var responseBody models.UeAuthenticationCtx
 	var authInfoReq models.AuthenticationInfoRequest
 
@@ -399,9 +401,10 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(updateConfirmationData mode
 }
 
 // return response, problemDetails
-func (p *Processor) EapAuthComfirmRequestProcedure(updateEapSession models.EapSession, eapSessionID string) (*models.EapSession,
-	*models.ProblemDetails,
-) {
+func (p *Processor) EapAuthComfirmRequestProcedure(
+	updateEapSession models.EapSession,
+	eapSessionID string,
+) (*models.EapSession, *models.ProblemDetails) {
 	var responseBody models.EapSession
 
 	if !ausf_context.CheckIfSuciSupiPairExists(eapSessionID) {
@@ -884,7 +887,12 @@ func getUdmUrl(nrfUri string) string {
 	nfDiscoverParam := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDM_UEAU}),
 	}
-	res, err := consumer.SendSearchNFInstances(nrfUri, models.NfType_UDM, models.NfType_AUSF, nfDiscoverParam)
+	res, err := consumer.GetConsumer().SendSearchNFInstances(
+		nrfUri,
+		models.NfType_UDM,
+		models.NfType_AUSF,
+		nfDiscoverParam,
+	)
 	if err != nil {
 		logger.UeAuthLog.Errorln("[Search UDM UEAU] ", err.Error())
 	} else if len(res.NfInstances) > 0 {

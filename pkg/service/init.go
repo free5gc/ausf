@@ -106,7 +106,6 @@ func (c *AusfApp) SetLogEnable(enable bool) {
 		logger.Log.SetOutput(os.Stderr)
 	} else {
 		logger.Log.SetOutput(io.Discard)
-
 	}
 }
 

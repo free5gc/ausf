@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	// "github.com/free5gc/openapi/nrf/NFManagement" // R17
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
@@ -15,7 +17,6 @@ import (
 	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
 	"github.com/free5gc/openapi/Nnrf_NFManagement"
 	"github.com/free5gc/openapi/models"
-	"github.com/pkg/errors"
 )
 
 type nnrfService struct {
@@ -74,7 +75,8 @@ func (s *nnrfService) getNFDiscClient(uri string) *Nnrf_NFDiscovery.APIClient {
 
 func (s *nnrfService) SendSearchNFInstances(
 	nrfUri string, targetNfType, requestNfType models.NfType, param Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (
-	*models.SearchResult, error) {
+	*models.SearchResult, error,
+) {
 	// Set client and set url
 	ausfContext := s.consumer.Context()
 
@@ -135,7 +137,8 @@ func (s *nnrfService) SendDeregisterNFInstance() (problemDetails *models.Problem
 }
 
 func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
-	resouceNrfUri string, retrieveNfInstanceID string, err error) {
+	resouceNrfUri string, retrieveNfInstanceID string, err error,
+) {
 	ausfContext := s.consumer.Context()
 
 	client := s.getNFManagementClient(ausfContext.NrfUri)
