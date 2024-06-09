@@ -10,12 +10,6 @@ type Processor struct {
 	ProcessorAusf
 }
 
-type HandlerResponse struct {
-	Status  int
-	Headers map[string][]string
-	Body    interface{}
-}
-
 func NewProcessor(ausf ProcessorAusf) (*Processor, error) {
 	p := &Processor{
 		ProcessorAusf: ausf,

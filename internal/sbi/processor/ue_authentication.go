@@ -94,8 +94,6 @@ func (p *Processor) HandleAuth5gAkaComfirmRequest(
 	c.JSON(int(problemDetails.Status), problemDetails)
 }
 
-// func UeAuthPostRequestProcedure(updateAuthenticationInfo models.AuthenticationInfo,
-// ) (response *models.UeAuthenticationCtx, locationURI string, problemDetails *models.ProblemDetails) {
 func (p *Processor) UeAuthPostRequestProcedure(
 	updateAuthenticationInfo models.AuthenticationInfo,
 ) (*models.UeAuthenticationCtx, string, *models.ProblemDetails) {
@@ -338,10 +336,6 @@ func (p *Processor) UeAuthPostRequestProcedure(
 
 	return &responseBody, locationURI, nil
 }
-
-// func Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.ConfirmationData,
-//	ConfirmationDataResponseID string) (response *models.ConfirmationDataResponse,
-//  problemDetails *models.ProblemDetails) {
 
 func (p *Processor) Auth5gAkaComfirmRequestProcedure(updateConfirmationData models.ConfirmationData,
 	ConfirmationDataResponseID string,
@@ -686,8 +680,6 @@ func EapEncodeAttribute(attributeType string, data string) (string, error) {
 	}
 }
 
-// func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) (K_encr string, K_aut string, K_re string,
-// MSK string, EMSK string) {
 func eapAkaPrimePrf(ikPrime string, ckPrime string, identity string) ([]byte, []byte, []byte, []byte, []byte) {
 	keyAp := ikPrime + ckPrime
 
