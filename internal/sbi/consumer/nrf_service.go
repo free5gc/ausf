@@ -150,7 +150,7 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 	var nf models.NfProfile
 	var res *http.Response
 	for {
-		nf, res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(context.TODO(), ausfContext.NfId, nfProfile)
+		nf, res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(ctx, ausfContext.NfId, nfProfile)
 		if err != nil || res == nil {
 			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 			time.Sleep(2 * time.Second)

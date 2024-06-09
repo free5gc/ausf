@@ -93,7 +93,7 @@ func (a *AusfApp) Config() *factory.Config {
 	return a.cfg
 }
 
-func (c *AusfApp) SetLogEnable(enable bool) {
+func (a *AusfApp) SetLogEnable(enable bool) {
 	logger.MainLog.Infof("Log enable is set to [%v]", enable)
 	if enable && logger.Log.Out == os.Stderr {
 		return
@@ -101,7 +101,7 @@ func (c *AusfApp) SetLogEnable(enable bool) {
 		return
 	}
 
-	c.Config().SetLogEnable(enable)
+	a.Config().SetLogEnable(enable)
 	if enable {
 		logger.Log.SetOutput(os.Stderr)
 	} else {
@@ -109,7 +109,7 @@ func (c *AusfApp) SetLogEnable(enable bool) {
 	}
 }
 
-func (c *AusfApp) SetLogLevel(level string) {
+func (a *AusfApp) SetLogLevel(level string) {
 	lvl, err := logrus.ParseLevel(level)
 	if err != nil {
 		logger.MainLog.Warnf("Log level [%s] is invalid", level)
@@ -121,17 +121,17 @@ func (c *AusfApp) SetLogLevel(level string) {
 		return
 	}
 
-	c.Config().SetLogLevel(level)
+	a.Config().SetLogLevel(level)
 	logger.Log.SetLevel(lvl)
 }
 
-func (c *AusfApp) SetReportCaller(reportCaller bool) {
+func (a *AusfApp) SetReportCaller(reportCaller bool) {
 	logger.MainLog.Infof("Report Caller is set to [%v]", reportCaller)
 	if reportCaller == logger.Log.ReportCaller {
 		return
 	}
 
-	c.Config().SetLogReportCaller(reportCaller)
+	a.Config().SetLogReportCaller(reportCaller)
 	logger.Log.SetReportCaller(reportCaller)
 }
 
@@ -160,13 +160,13 @@ func (a *AusfApp) listenShutdownEvent() {
 	a.Terminate()
 }
 
-func (c *AusfApp) Terminate() {
+func (a *AusfApp) Terminate() {
 	logger.MainLog.Infof("Terminating AUSF...")
-	c.cancel()
-	c.CallServerStop()
+	a.cancel()
+	a.CallServerStop()
 
 	// deregister with NRF
-	problemDetails, err := c.Consumer().SendDeregisterNFInstance()
+	problemDetails, err := a.Consumer().SendDeregisterNFInstance()
 	if problemDetails != nil {
 		logger.MainLog.Errorf("Deregister NF instance Failed Problem[%+v]", problemDetails)
 	} else if err != nil {
@@ -179,7 +179,7 @@ func (c *AusfApp) Terminate() {
 
 func (a *AusfApp) CallServerStop() {
 	if a.sbiServer != nil {
-		a.sbiServer.Stop()
+		a.sbiServer.Shutdown()
 	}
 }
 
