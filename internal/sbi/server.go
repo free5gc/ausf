@@ -41,16 +41,9 @@ type Server struct {
 func NewServer(ausf ServerAusf, tlsKeyLogPath string) (*Server, error) {
 	s := &Server{
 		ServerAusf: ausf,
-		router:     logger_util.NewGinWithLogrus(logger.GinLog),
 	}
 
-	routes := s.getUeAuthenticationRoutes()
-	group := s.router.Group(factory.AusfAuthResUriPrefix)
-	routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceName_NAUSF_AUTH)
-	group.Use(func(c *gin.Context) {
-		routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
-	})
-	applyRoutes(group, routes)
+	s.router = newRouter(s)
 
 	cfg := s.Config()
 	bindAddr := cfg.GetSbiBindingAddr()
@@ -63,6 +56,41 @@ func NewServer(ausf ServerAusf, tlsKeyLogPath string) (*Server, error) {
 	s.httpServer.ErrorLog = log.New(logger.SBILog.WriterLevel(logrus.ErrorLevel), "HTTP2: ", 0)
 
 	return s, nil
+}
+
+func newRouter(s *Server) *gin.Engine {
+	router := logger_util.NewGinWithLogrus(logger.GinLog)
+
+	for _, serverName := range factory.AusfConfig.Configuration.ServiceNameList {
+		switch models.ServiceName(serverName) {
+		case models.ServiceName_NAUSF_AUTH:
+			ausfUeAuthenticationGroup := router.Group(factory.AusfAuthResUriPrefix)
+			ausfUeAuthenticationRoutes := s.getUeAuthenticationRoutes()
+			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceName_NAUSF_AUTH)
+			ausfUeAuthenticationGroup.Use(func(c *gin.Context) {
+				routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
+			})
+			applyRoutes(ausfUeAuthenticationGroup, ausfUeAuthenticationRoutes)
+		case models.ServiceName_NAUSF_SORPROTECTION:
+			ausfSorprotectionGroup := router.Group(factory.AusfSorprotectionResUriPrefix)
+			ausfSorprotectionRoutes := s.getSorprotectionRoutes()
+			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceName_NAUSF_SORPROTECTION)
+			ausfSorprotectionGroup.Use(func(c *gin.Context) {
+				routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
+			})
+			applyRoutes(ausfSorprotectionGroup, ausfSorprotectionRoutes)
+		case models.ServiceName_NAUSF_UPUPROTECTION:
+			ausfUpuprotectionGroup := router.Group(factory.AusfUpuprotectionResUriPrefix)
+			ausfUpuprotectionRoutes := s.getUpuprotectionRoutes()
+			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceName_NAUSF_UPUPROTECTION)
+			ausfUpuprotectionGroup.Use(func(c *gin.Context) {
+				routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
+			})
+			applyRoutes(ausfUpuprotectionGroup, ausfUpuprotectionRoutes)
+		}
+	}
+
+	return router
 }
 
 func (s *Server) Run(traceCtx context.Context, wg *sync.WaitGroup) error {
