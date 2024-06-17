@@ -54,11 +54,10 @@ func (p *Processor) HandleUeAuthPostRequest(c *gin.Context, authenticationInfo m
 	logger.UeAuthLog.Infof("HandleUeAuthPostRequest")
 
 	response, locationURI, problemDetails := p.UeAuthPostRequestProcedure(authenticationInfo)
-	respHeader := make(http.Header)
-	respHeader.Set("Location", locationURI)
+	c.Header("Location", locationURI)
 
 	if response != nil {
-		c.JSON(http.StatusOK, response)
+		c.JSON(http.StatusCreated, response)
 		return
 	} else if problemDetails != nil {
 		c.JSON(int(problemDetails.Status), problemDetails)
@@ -883,7 +882,7 @@ func getUdmUrl(nrfUri string) string {
 		nrfUri,
 		models.NfType_UDM,
 		models.NfType_AUSF,
-		nfDiscoverParam,
+		&nfDiscoverParam,
 	)
 	if err != nil {
 		logger.UeAuthLog.Errorln("[Search UDM UEAU] ", err.Error())
