@@ -10,7 +10,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	// "github.com/free5gc/openapi/nrf/NFManagement" // R17
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi"
@@ -74,33 +73,36 @@ func (s *nnrfService) getNFDiscClient(uri string) *Nnrf_NFDiscovery.APIClient {
 }
 
 func (s *nnrfService) SendSearchNFInstances(
-	nrfUri string, targetNfType, requestNfType models.NfType, param Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (
+	nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (
 	*models.SearchResult, error,
 ) {
 	// Set client and set url
-	ausfContext := s.consumer.Context()
-
-	client := s.getNFDiscClient(ausfContext.NrfUri)
+	client := s.getNFDiscClient(nrfUri)
+	if client == nil {
+		return nil, openapi.ReportError("nrf not found")
+	}
 
 	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_DISC, models.NfType_NRF)
 	if err != nil {
 		return nil, err
 	}
 
-	result, res, err := client.NFInstancesStoreApi.SearchNFInstances(ctx, targetNfType, requestNfType, &param)
-	if err != nil {
-		logger.ConsumerLog.Errorf("SearchNFInstances failed: %+v", err)
+	result, res, err := client.NFInstancesStoreApi.SearchNFInstances(ctx, targetNfType, requestNfType, param)
+
+	if res != nil && res.StatusCode == http.StatusTemporaryRedirect {
+		return nil, fmt.Errorf("temporary Redirect For Non NRF Consumer")
+	}
+	if res == nil || res.Body == nil {
+		return &result, err
 	}
 	defer func() {
-		if resCloseErr := res.Body.Close(); resCloseErr != nil {
-			logger.ConsumerLog.Errorf("NFInstancesStoreApi response body cannot close: %+v", resCloseErr)
+		if res != nil {
+			if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
+				err = fmt.Errorf("SearchNFInstances' response body cannot close: %+w", bodyCloseErr)
+			}
 		}
 	}()
-	if res != nil && res.StatusCode == http.StatusTemporaryRedirect {
-		return nil, fmt.Errorf("Temporary Redirect For Non NRF Consumer")
-	}
-
-	return &result, nil
+	return &result, err
 }
 
 func (s *nnrfService) SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err error) {

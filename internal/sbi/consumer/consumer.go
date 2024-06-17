@@ -32,5 +32,6 @@ func NewConsumer(ausf ConsumerAusf) (*Consumer, error) {
 		nfMngmntClients: make(map[string]*Nnrf_NFManagement.APIClient),
 		nfDiscClients:   make(map[string]*Nnrf_NFDiscovery.APIClient),
 	}
+	consumer = c
 	return c, nil
 }
