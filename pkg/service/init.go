@@ -145,6 +145,7 @@ func (a *AusfApp) Start() {
 	if err := a.sbiServer.Run(context.Background(), &a.wg); err != nil {
 		logger.MainLog.Fatalf("Run SBI server failed: %+v", err)
 	}
+	a.WaitRoutineStopped()
 }
 
 func (a *AusfApp) listenShutdownEvent() {
@@ -157,13 +158,15 @@ func (a *AusfApp) listenShutdownEvent() {
 	}()
 
 	<-a.ctx.Done()
-	a.Terminate()
+	a.terminateProcedure()
 }
 
 func (a *AusfApp) Terminate() {
-	logger.MainLog.Infof("Terminating AUSF...")
 	a.cancel()
-	a.CallServerStop()
+}
+
+func (a *AusfApp) terminateProcedure() {
+	logger.MainLog.Infof("Terminating AUSF...")
 
 	// deregister with NRF
 	problemDetails, err := a.Consumer().SendDeregisterNFInstance()
@@ -175,6 +178,8 @@ func (a *AusfApp) Terminate() {
 		logger.MainLog.Infof("Deregister from NRF successfully")
 	}
 	logger.MainLog.Infof("AUSF SBI Server terminated")
+
+	a.CallServerStop()
 }
 
 func (a *AusfApp) CallServerStop() {

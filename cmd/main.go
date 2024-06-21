@@ -87,7 +87,6 @@ func action(cliCtx *cli.Context) error {
 	AUSF = ausf
 
 	ausf.Start()
-	AUSF.WaitRoutineStopped()
 
 	return nil
 }
