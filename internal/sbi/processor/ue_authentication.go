@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/antihax/optional"
 	"github.com/bronze1man/radius"
 	"github.com/gin-gonic/gin"
 	"github.com/google/gopacket"
@@ -23,10 +22,7 @@ import (
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
-	"github.com/free5gc/ausf/internal/sbi/consumer"
 	"github.com/free5gc/ausf/pkg/factory"
-	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
-	Nudm_UEAU "github.com/free5gc/openapi/Nudm_UEAuthentication"
 	"github.com/free5gc/openapi/models"
 	"github.com/free5gc/util/ueauth"
 )
@@ -132,31 +128,14 @@ func (p *Processor) UeAuthPostRequestProcedure(
 		lastEapID = ausfCurrentContext.EapID
 	}
 
-	udmUrl := getUdmUrl(self.NrfUri)
-	client := createClientToUdmUeau(udmUrl)
+	udmUrl := p.Consumer().GetUdmUrl(self.NrfUri)
 
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NUDM_UEAU, models.NfType_UDM)
+	result, err, pd := p.Consumer().GenerateAuthDataApi(udmUrl, supiOrSuci, authInfoReq)
 	if err != nil {
-		return nil, "", nil
+		logger.UeAuthLog.Infof("GenerateAuthDataApi error: %+v", err)
+		return nil, "", pd
 	}
-
-	authInfoResult, rsp, err := client.GenerateAuthDataApi.GenerateAuthData(ctx, supiOrSuci, authInfoReq)
-	if err != nil {
-		logger.UeAuthLog.Infoln(err.Error())
-		var problemDetails models.ProblemDetails
-		if authInfoResult.AuthenticationVector == nil {
-			problemDetails.Cause = "AV_GENERATION_PROBLEM"
-		} else {
-			problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
-		}
-		problemDetails.Status = int32(rsp.StatusCode)
-		return nil, "", &problemDetails
-	}
-	defer func() {
-		if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-			logger.UeAuthLog.Errorf("GenerateAuthDataApi response body cannot close: %+v", rspCloseErr)
-		}
-	}()
+	authInfoResult := *result
 
 	ueid := authInfoResult.Supi
 	ausfUeContext := ausf_context.NewAusfUeContext(ueid)
@@ -376,11 +355,11 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(updateConfirmationData mode
 	} else {
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		responseBody.AuthResult = models.AuthResult_FAILURE
-		logConfirmFailureAndInformUDM(ConfirmationDataResponseID, models.AuthType__5_G_AKA, servingNetworkName,
+		p.logConfirmFailureAndInformUDM(ConfirmationDataResponseID, models.AuthType__5_G_AKA, servingNetworkName,
 			"5G AKA confirmation failed", ausfCurrentContext.UdmUeauUrl)
 	}
 
-	if sendErr := sendAuthResultToUDM(currentSupi, models.AuthType__5_G_AKA, success, servingNetworkName,
+	if sendErr := p.Consumer().SendAuthResultToUDM(currentSupi, models.AuthType__5_G_AKA, success, servingNetworkName,
 		ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 		logger.Auth5gAkaLog.Infoln(sendErr.Error())
 		var problemDetails models.ProblemDetails
@@ -474,7 +453,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 				eapSuccPkt := ConstructEapNoTypePkt(radius.EapCodeSuccess, eapContent.Id)
 				responseBody.EapPayload = eapSuccPkt
 				udmUrl := ausfCurrentContext.UdmUeauUrl
-				if sendErr := sendAuthResultToUDM(
+				if sendErr := p.Consumer().SendAuthResultToUDM(
 					eapSessionID,
 					models.AuthType_EAP_AKA_PRIME,
 					true,
@@ -528,7 +507,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 
 	if !eapOK {
 		logger.AuthELog.Warnf("EAP-AKA' failure: %s", eapErrStr)
-		if sendErr := sendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, false, servingNetworkName,
+		if sendErr := p.Consumer().SendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, false, servingNetworkName,
 			ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())
 			var problemDetails models.ProblemDetails
@@ -548,7 +527,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 		responseBody.Links = make(map[string]models.LinksValueSchema)
 		responseBody.Links["eap-session"] = linksValue
 	} else if ausfCurrentContext.AuthStatus == models.AuthResult_FAILURE {
-		if sendErr := sendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, false, servingNetworkName,
+		if sendErr := p.Consumer().SendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, false, servingNetworkName,
 			ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())
 			var problemDetails models.ProblemDetails
@@ -873,77 +852,17 @@ func ConstructEapNoTypePkt(code radius.EapCode, pktID uint8) string {
 	return base64.StdEncoding.EncodeToString(b)
 }
 
-func getUdmUrl(nrfUri string) string {
-	udmUrl := "https://localhost:29503" // default
-	nfDiscoverParam := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDM_UEAU}),
-	}
-	res, err := consumer.GetConsumer().SendSearchNFInstances(
-		nrfUri,
-		models.NfType_UDM,
-		models.NfType_AUSF,
-		&nfDiscoverParam,
-	)
-	if err != nil {
-		logger.UeAuthLog.Errorln("[Search UDM UEAU] ", err.Error())
-	} else if len(res.NfInstances) > 0 {
-		udmInstance := res.NfInstances[0]
-		if len(udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil {
-			ueauService := (*udmInstance.NfServices)[0]
-			ueauEndPoint := (*ueauService.IpEndPoints)[0]
-			udmUrl = string(ueauService.Scheme) + "://" + ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(int(ueauEndPoint.Port))
-		}
-	} else {
-		logger.UeAuthLog.Errorln("[Search UDM UEAU] len(NfInstances) = 0")
-	}
-	return udmUrl
-}
-
-func createClientToUdmUeau(udmUrl string) *Nudm_UEAU.APIClient {
-	cfg := Nudm_UEAU.NewConfiguration()
-	cfg.SetBasePath(udmUrl)
-	clientAPI := Nudm_UEAU.NewAPIClient(cfg)
-	return clientAPI
-}
-
-func sendAuthResultToUDM(id string, authType models.AuthType, success bool, servingNetworkName, udmUrl string) error {
-	timeNow := time.Now()
-	timePtr := &timeNow
-
-	self := ausf_context.GetSelf()
-
-	var authEvent models.AuthEvent
-	authEvent.TimeStamp = timePtr
-	authEvent.AuthType = authType
-	authEvent.Success = success
-	authEvent.ServingNetworkName = servingNetworkName
-	authEvent.NfInstanceId = self.GetSelfID()
-
-	client := createClientToUdmUeau(udmUrl)
-
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NUDM_UEAU, models.NfType_UDM)
-	if err != nil {
-		return err
-	}
-
-	_, rsp, confirmAuthErr := client.ConfirmAuthApi.ConfirmAuth(ctx, id, authEvent)
-	defer func() {
-		if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-			logger.ConsumerLog.Errorf("ConfirmAuth Response cannot close: %v", rspCloseErr)
-		}
-	}()
-	return confirmAuthErr
-}
-
-func logConfirmFailureAndInformUDM(id string, authType models.AuthType, servingNetworkName, errStr, udmUrl string) {
+func (p *Processor) logConfirmFailureAndInformUDM(
+	id string, authType models.AuthType, servingNetworkName, errStr, udmUrl string,
+) {
 	if authType == models.AuthType__5_G_AKA {
 		logger.Auth5gAkaLog.Infoln(errStr)
-		if sendErr := sendAuthResultToUDM(id, authType, false, "", udmUrl); sendErr != nil {
+		if sendErr := p.Consumer().SendAuthResultToUDM(id, authType, false, "", udmUrl); sendErr != nil {
 			logger.Auth5gAkaLog.Infoln(sendErr.Error())
 		}
 	} else if authType == models.AuthType_EAP_AKA_PRIME {
 		logger.AuthELog.Infoln(errStr)
-		if sendErr := sendAuthResultToUDM(id, authType, false, "", udmUrl); sendErr != nil {
+		if sendErr := p.Consumer().SendAuthResultToUDM(id, authType, false, "", udmUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())
 		}
 	}

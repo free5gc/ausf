@@ -1,9 +1,14 @@
 package processor
 
-import "github.com/free5gc/ausf/pkg/app"
+import (
+	"github.com/free5gc/ausf/internal/sbi/consumer"
+	"github.com/free5gc/ausf/pkg/app"
+)
 
 type ProcessorAusf interface {
 	app.App
+
+	Consumer() *consumer.Consumer
 }
 
 type Processor struct {

@@ -23,11 +23,6 @@ var AUSF *AusfApp
 var _ app.App = &AusfApp{}
 
 type AusfApp struct {
-	app.App
-	consumer.ConsumerAusf
-	processor.ProcessorAusf
-	sbi.ServerAusf
-
 	ausfCtx *ausf_context.AUSFContext
 	cfg     *factory.Config
 

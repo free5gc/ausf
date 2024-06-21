@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/antihax/optional"
 	"github.com/pkg/errors"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
@@ -220,4 +222,30 @@ func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (pro
 		// },
 	}
 	return
+}
+
+func (s *nnrfService) GetUdmUrl(nrfUri string) string {
+	udmUrl := "https://localhost:29503" // default
+	nfDiscoverParam := &Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
+		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDM_UEAU}),
+	}
+	res, err := s.SendSearchNFInstances(
+		nrfUri,
+		models.NfType_UDM,
+		models.NfType_AUSF,
+		nfDiscoverParam,
+	)
+	if err != nil {
+		logger.ConsumerLog.Errorln("[Search UDM UEAU] ", err.Error(), "use defalt udmUrl", udmUrl)
+	} else if len(res.NfInstances) > 0 {
+		udmInstance := res.NfInstances[0]
+		if len(udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil {
+			ueauService := (*udmInstance.NfServices)[0]
+			ueauEndPoint := (*ueauService.IpEndPoints)[0]
+			udmUrl = string(ueauService.Scheme) + "://" + ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(int(ueauEndPoint.Port))
+		}
+	} else {
+		logger.ConsumerLog.Errorln("[Search UDM UEAU] len(NfInstances) = 0")
+	}
+	return udmUrl
 }
