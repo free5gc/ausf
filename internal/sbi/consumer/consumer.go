@@ -7,8 +7,6 @@ import (
 	"github.com/free5gc/openapi/Nudm_UEAuthentication"
 )
 
-var consumer *Consumer
-
 type ConsumerAusf interface {
 	app.App
 }
@@ -18,10 +16,6 @@ type Consumer struct {
 
 	*nnrfService
 	*nudmService
-}
-
-func GetConsumer() *Consumer {
-	return consumer
 }
 
 func NewConsumer(ausf ConsumerAusf) (*Consumer, error) {
@@ -40,6 +34,5 @@ func NewConsumer(ausf ConsumerAusf) (*Consumer, error) {
 		ueauClients: make(map[string]*Nudm_UEAuthentication.APIClient),
 	}
 
-	consumer = c
 	return c, nil
 }

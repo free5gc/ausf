@@ -22,5 +22,5 @@ func (s *Server) getUpuprotectionRoutes() []Route {
 }
 
 func (s *Server) SupiUeUpuPost(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{})
+	c.JSON(http.StatusNotImplemented, gin.H{})
 }

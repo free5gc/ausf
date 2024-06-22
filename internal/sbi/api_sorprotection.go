@@ -22,5 +22,5 @@ func (s *Server) getSorprotectionRoutes() []Route {
 }
 
 func (s *Server) SupiUeSorPost(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{})
+	c.JSON(http.StatusNotImplemented, gin.H{})
 }
