@@ -130,7 +130,6 @@ func (a *AusfApp) SetReportCaller(reportCaller bool) {
 	logger.Log.SetReportCaller(reportCaller)
 }
 
-// tlsKeyLogPath have to remove after all NFs are refactor
 func (a *AusfApp) Start() {
 	logger.InitLog.Infoln("Server started")
 

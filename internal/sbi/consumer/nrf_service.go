@@ -190,8 +190,7 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 
 			break
 		} else {
-			fmt.Println(fmt.Errorf("handler returned wrong status code %d", status))
-			fmt.Println("NRF return wrong status code", status)
+			logger.ConsumerLog.Errorln("NRF return wrong status code", status)
 		}
 	}
 	return resouceNrfUri, retrieveNfInstanceID, err
