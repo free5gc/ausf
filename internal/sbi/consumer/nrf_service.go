@@ -2,22 +2,20 @@ package consumer
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/antihax/optional"
 	"github.com/pkg/errors"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi"
-	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
-	"github.com/free5gc/openapi/Nnrf_NFManagement"
 	"github.com/free5gc/openapi/models"
+	Nnrf_NFDiscovery "github.com/free5gc/openapi/nrf/NFDiscovery"
+	"github.com/free5gc/openapi/nrf/NFManagement"
+	Nnrf_NFManagement "github.com/free5gc/openapi/nrf/NFManagement"
 )
 
 type nnrfService struct {
@@ -75,7 +73,10 @@ func (s *nnrfService) getNFDiscClient(uri string) *Nnrf_NFDiscovery.APIClient {
 }
 
 func (s *nnrfService) SendSearchNFInstances(
-	nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (
+	nrfUri string, targetNfType,
+	requestNfType models.NrfNfManagementNfType,
+	param Nnrf_NFDiscovery.SearchNFInstancesRequest,
+) (
 	*models.SearchResult, error,
 ) {
 	// Set client and set url
@@ -84,33 +85,24 @@ func (s *nnrfService) SendSearchNFInstances(
 		return nil, openapi.ReportError("nrf not found")
 	}
 
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_DISC, models.NfType_NRF)
+	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_DISC, models.NrfNfManagementNfType_NRF)
 	if err != nil {
 		return nil, err
 	}
 
-	result, res, err := client.NFInstancesStoreApi.SearchNFInstances(ctx, targetNfType, requestNfType, param)
+	res, err := client.NFInstancesStoreApi.SearchNFInstances(ctx, &param)
+	result := res.SearchResult
 
-	if res != nil && res.StatusCode == http.StatusTemporaryRedirect {
-		return nil, fmt.Errorf("temporary Redirect For Non NRF Consumer")
+	if err != nil {
+		logger.ConsumerLog.Errorf("SearchNFInstances failed: %+v", err)
 	}
-	if res == nil || res.Body == nil {
-		return &result, err
-	}
-	defer func() {
-		if res != nil {
-			if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
-				err = fmt.Errorf("SearchNFInstances' response body cannot close: %+w", bodyCloseErr)
-			}
-		}
-	}()
 	return &result, err
 }
 
 func (s *nnrfService) SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err error) {
 	logger.ConsumerLog.Infof("Send Deregister NFInstance")
 
-	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_NFM, models.NfType_NRF)
+	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_NFM, models.NrfNfManagementNfType_NRF)
 	if err != nil {
 		return pd, err
 	}
@@ -118,25 +110,11 @@ func (s *nnrfService) SendDeregisterNFInstance() (problemDetails *models.Problem
 	ausfContext := s.consumer.Context()
 	client := s.getNFManagementClient(ausfContext.NrfUri)
 
-	var res *http.Response
-
-	res, err = client.NFInstanceIDDocumentApi.DeregisterNFInstance(ctx, ausfContext.NfId)
-	if err == nil {
-		return problemDetails, err
-	} else if res != nil {
-		defer func() {
-			if resCloseErr := res.Body.Close(); resCloseErr != nil {
-				logger.ConsumerLog.Errorf("DeregisterNFInstance response cannot close: %+v", resCloseErr)
-			}
-		}()
-		if res.Status != err.Error() {
-			return problemDetails, err
-		}
-		problem := err.(openapi.GenericOpenAPIError).Model().(models.ProblemDetails)
-		problemDetails = &problem
-	} else {
-		err = openapi.ReportError("server no response")
+	request := &NFManagement.DeregisterNFInstanceRequest{
+		NfInstanceID: &ausfContext.NfId,
 	}
+
+	_, err = client.NFInstanceIDDocumentApi.DeregisterNFInstance(ctx, request)
 	return problemDetails, err
 }
 
@@ -151,27 +129,28 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 		return "", "", errors.Wrap(err, "RegisterNFInstance buildNfProfile()")
 	}
 
-	var nf models.NfProfile
-	var res *http.Response
+	var nf models.NrfNfManagementNfProfile
+	var res *NFManagement.RegisterNFInstanceResponse
+	registerNFInstanceRequest := &NFManagement.RegisterNFInstanceRequest{
+		NfInstanceID:             &ausfContext.NfId,
+		NrfNfManagementNfProfile: &nfProfile,
+	}
 	for {
-		nf, res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(ctx, ausfContext.NfId, nfProfile)
+		res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(ctx, registerNFInstanceRequest)
 		if err != nil || res == nil {
 			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 			time.Sleep(2 * time.Second)
 			continue
 		}
-		defer func() {
-			if resCloseErr := res.Body.Close(); resCloseErr != nil {
-				logger.ConsumerLog.Errorf("RegisterNFInstance response body cannot close: %+v", resCloseErr)
-			}
-		}()
-		status := res.StatusCode
-		if status == http.StatusOK {
+		nf = res.NrfNfManagementNfProfile
+
+		// http.StatusOK
+		if res.Location == "" {
 			// NFUpdate
 			break
-		} else if status == http.StatusCreated {
+		} else { // http.StatusCreated
 			// NFRegister
-			resourceUri := res.Header.Get("Location")
+			resourceUri := res.Location
 			resouceNrfUri = resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
 			retrieveNfInstanceID = resourceUri[strings.LastIndex(resourceUri, "/")+1:]
 
@@ -189,24 +168,22 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 			}
 
 			break
-		} else {
-			logger.ConsumerLog.Errorln("NRF return wrong status code", status)
 		}
 	}
 	return resouceNrfUri, retrieveNfInstanceID, err
 }
 
-func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (profile models.NfProfile, err error) {
+func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (profile models.NrfNfManagementNfProfile, err error) {
 	profile.NfInstanceId = ausfContext.NfId
-	profile.NfType = models.NfType_AUSF
-	profile.NfStatus = models.NfStatus_REGISTERED
+	profile.NfType = models.NrfNfManagementNfType_AUSF
+	profile.NfStatus = models.NrfNfManagementNfStatus_REGISTERED
 	profile.Ipv4Addresses = append(profile.Ipv4Addresses, ausfContext.RegisterIPv4)
-	services := []models.NfService{}
+	services := []models.NrfNfManagementNfService{}
 	for _, nfService := range ausfContext.NfService {
 		services = append(services, nfService)
 	}
 	if len(services) > 0 {
-		profile.NfServices = &services
+		profile.NfServices = services
 	}
 	profile.AusfInfo = &models.AusfInfo{
 		// Todo
@@ -225,22 +202,22 @@ func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (pro
 
 func (s *nnrfService) GetUdmUrl(nrfUri string) string {
 	udmUrl := "https://localhost:29503" // default
-	nfDiscoverParam := &Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDM_UEAU}),
+	nfDiscoverParam := &Nnrf_NFDiscovery.SearchNFInstancesRequest{
+		ServiceNames: []models.ServiceName{models.ServiceName_NUDM_UEAU},
 	}
 	res, err := s.SendSearchNFInstances(
 		nrfUri,
-		models.NfType_UDM,
-		models.NfType_AUSF,
-		nfDiscoverParam,
+		models.NrfNfManagementNfType_UDM,
+		models.NrfNfManagementNfType_AUSF,
+		*nfDiscoverParam,
 	)
 	if err != nil {
 		logger.ConsumerLog.Errorln("[Search UDM UEAU] ", err.Error(), "use defalt udmUrl", udmUrl)
 	} else if len(res.NfInstances) > 0 {
 		udmInstance := res.NfInstances[0]
 		if len(udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil {
-			ueauService := (*udmInstance.NfServices)[0]
-			ueauEndPoint := (*ueauService.IpEndPoints)[0]
+			ueauService := (udmInstance.NfServices)[0]
+			ueauEndPoint := (ueauService.IpEndPoints)[0]
 			udmUrl = string(ueauService.Scheme) + "://" + ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(int(ueauEndPoint.Port))
 		}
 	} else {

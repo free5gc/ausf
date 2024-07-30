@@ -22,7 +22,7 @@ type AUSFContext struct {
 	UriScheme            models.UriScheme
 	NrfUri               string
 	NrfCertPem           string
-	NfService            map[models.ServiceName]models.NfService
+	NfService            map[models.ServiceName]models.NrfNfManagementNfService
 	PlmnList             []models.PlmnId
 	UdmUeauUrl           string
 	snRegex              *regexp.Regexp
@@ -166,13 +166,13 @@ func (a *AUSFContext) GetSelfID() string {
 	return a.NfId
 }
 
-func (c *AUSFContext) GetTokenCtx(serviceName models.ServiceName, targetNF models.NfType) (
+func (c *AUSFContext) GetTokenCtx(serviceName models.ServiceName, targetNF models.NrfNfManagementNfType) (
 	context.Context, *models.ProblemDetails, error,
 ) {
 	if !c.OAuth2Required {
 		return context.TODO(), nil, nil
 	}
-	return oauth.GetTokenCtx(models.NfType_AUSF, targetNF,
+	return oauth.GetTokenCtx(models.NrfNfManagementNfType_AUSF, targetNF,
 		c.NfId, c.NrfUri, string(serviceName))
 }
 
