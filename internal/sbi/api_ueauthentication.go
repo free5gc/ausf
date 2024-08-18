@@ -29,30 +29,78 @@ func Index(c *gin.Context) {
 func (s *Server) getUeAuthenticationRoutes() []Route {
 	return []Route{
 		{
+			Name:    "Index",
 			Method:  http.MethodGet,
 			Pattern: "/",
-			APIFunc: Index,
+			APIFunc: func(c *gin.Context) {
+				c.String(http.StatusOK, "Hello free5GC!")
+			},
 		},
 		{
+			Name:    "EapAuthMethod",
 			Method:  http.MethodPost,
 			Pattern: "/ue-authentications/:authCtxId/eap-session",
-			APIFunc: s.EapAuthMethodPost,
+			APIFunc: s.HTTPEapAuthMethod,
 		},
 		{
+			Name:    "UeAuthenticationsPost",
 			Method:  http.MethodPost,
 			Pattern: "/ue-authentications",
-			APIFunc: s.UeAuthenticationsPost,
+			APIFunc: s.HTTPUeAuthenticationsPost,
 		},
 		{
+			Name:    "UeAuthenticationsAuthCtxId5gAkaConfirmationPut",
 			Method:  http.MethodPut,
 			Pattern: "/ue-authentications/:authCtxId/5g-aka-confirmation",
-			APIFunc: s.UeAuthenticationsAuthCtxID5gAkaConfirmationPut,
+			APIFunc: s.HTTPUeAuthenticationsAuthCtxId5gAkaConfirmationPut,
+		},
+
+		{
+			Name:    "Delete5gAkaAuthenticationResult",
+			Method:  http.MethodDelete,
+			Pattern: "/ue-authentications/:authCtxId/5g-aka-confirmation",
+			APIFunc: s.HTTPDelete5gAkaAuthenticationResult,
+		},
+		{
+			Name:    "DeleteEapAuthenticationResult",
+			Method:  http.MethodDelete,
+			Pattern: "/ue-authentications/:authCtxId/eap-session",
+			APIFunc: s.HTTPDeleteEapAuthenticationResult,
+		},
+		{
+			Name:    "DeleteProSeAuthenticationResult",
+			Method:  http.MethodDelete,
+			Pattern: "/prose-authentications/:authCtxId/prose-auth",
+			APIFunc: s.HTTPDeleteProSeAuthenticationResult,
+		},
+		{
+			Name:    "ProseAuth",
+			Method:  http.MethodPost,
+			Pattern: "/prose-authentications",
+			APIFunc: s.HTTPProseAuth,
+		},
+		{
+			Name:    "ProseAuthenticationsPost",
+			Method:  http.MethodPost,
+			Pattern: "/prose-authentications/:authCtxId/prose-auth",
+			APIFunc: s.HTTPProseAuthenticationsPost,
+		},
+		{
+			Name:    "RgAuthenticationsPost",
+			Method:  http.MethodPost,
+			Pattern: "/rg-authentications/:authCtxId",
+			APIFunc: s.HTTPRgAuthenticationsPost,
+		},
+		{
+			Name:    "UeAuthenticationsDeregisterPost",
+			Method:  http.MethodPost,
+			Pattern: "/ue-authentications/deregister",
+			APIFunc: s.HTTPUeAuthenticationsDeregisterPost,
 		},
 	}
 }
 
-// EapAuthMethodPost -
-func (s *Server) EapAuthMethodPost(c *gin.Context) {
+func (s *Server) HTTPEapAuthMethod(c *gin.Context) {
 	var eapSessionReq models.EapSession
 
 	requestBody, err := c.GetRawData()
@@ -85,8 +133,7 @@ func (s *Server) EapAuthMethodPost(c *gin.Context) {
 	s.Processor().HandleEapAuthComfirmRequest(c, eapSessionReq, eapSessionId)
 }
 
-// UeAuthenticationsPost
-func (s *Server) UeAuthenticationsPost(c *gin.Context) {
+func (s *Server) HTTPUeAuthenticationsPost(c *gin.Context) {
 	var authInfo models.AuthenticationInfo
 
 	requestBody, err := c.GetRawData()
@@ -118,8 +165,7 @@ func (s *Server) UeAuthenticationsPost(c *gin.Context) {
 	s.Processor().HandleUeAuthPostRequest(c, authInfo)
 }
 
-// UeAuthenticationsAuthCtxID5gAkaConfirmationPut
-func (s *Server) UeAuthenticationsAuthCtxID5gAkaConfirmationPut(c *gin.Context) {
+func (s *Server) HTTPUeAuthenticationsAuthCtxId5gAkaConfirmationPut(c *gin.Context) {
 	var confirmationData models.ConfirmationData
 
 	requestBody, err := c.GetRawData()
@@ -150,4 +196,32 @@ func (s *Server) UeAuthenticationsAuthCtxID5gAkaConfirmationPut(c *gin.Context) 
 	confirmationDataResponseId := c.Param("authCtxId")
 
 	s.Processor().HandleAuth5gAkaComfirmRequest(c, confirmationData, confirmationDataResponseId)
+}
+
+func (s *Server) HTTPDelete5gAkaAuthenticationResult(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{})
+}
+
+func (s *Server) HTTPDeleteEapAuthenticationResult(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{})
+}
+
+func (s *Server) HTTPDeleteProSeAuthenticationResult(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{})
+}
+
+func (s *Server) HTTPProseAuth(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{})
+}
+
+func (s *Server) HTTPProseAuthenticationsPost(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{})
+}
+
+func (s *Server) HTTPRgAuthenticationsPost(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{})
+}
+
+func (s *Server) HTTPUeAuthenticationsDeregisterPost(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{})
 }
