@@ -61,8 +61,8 @@ func NewServer(ausf ServerAusf, tlsKeyLogPath string) (*Server, error) {
 func newRouter(s *Server) *gin.Engine {
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 
-	for _, serverName := range factory.AusfConfig.Configuration.ServiceNameList {
-		switch models.ServiceName(serverName) {
+	for _, serviceName := range factory.AusfConfig.Configuration.ServiceNameList {
+		switch models.ServiceName(serviceName) {
 		case models.ServiceName_NAUSF_AUTH:
 			ausfUeAuthenticationGroup := router.Group(factory.AusfAuthResUriPrefix)
 			ausfUeAuthenticationRoutes := s.getUeAuthenticationRoutes()
@@ -87,6 +87,9 @@ func newRouter(s *Server) *gin.Engine {
 				routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
 			})
 			applyRoutes(ausfUpuprotectionGroup, ausfUpuprotectionRoutes)
+
+		default:
+			logger.SBILog.Warnf("Unsupported service name: %s", serviceName)
 		}
 	}
 

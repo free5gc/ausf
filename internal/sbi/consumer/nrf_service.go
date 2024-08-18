@@ -173,7 +173,9 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 	return resouceNrfUri, retrieveNfInstanceID, err
 }
 
-func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (profile models.NrfNfManagementNfProfile, err error) {
+func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
+	profile models.NrfNfManagementNfProfile, err error,
+) {
 	profile.NfInstanceId = ausfContext.NfId
 	profile.NfType = models.NrfNfManagementNfType_AUSF
 	profile.NfStatus = models.NrfNfManagementNfStatus_REGISTERED
