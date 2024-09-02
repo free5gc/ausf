@@ -83,7 +83,7 @@ func (s *nudmService) GenerateAuthDataApi(
 	udmUrl string,
 	supiOrSuci string,
 	authInfoReq models.AuthenticationInfoRequest,
-) (*models.AuthenticationInfoResult, error, *models.ProblemDetails) {
+) (*models.UdmUeauAuthenticationInfoResult, error, *models.ProblemDetails) {
 	client := s.getUdmUeauClient(udmUrl)
 
 	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NUDM_UEAU, models.NrfNfManagementNfType_UDM)
@@ -116,8 +116,8 @@ func (s *nudmService) GenerateAuthDataApi(
 		return nil, err, &problemDetails
 	}
 
-	authInfoResult := models.AuthenticationInfoResult{
-		AuthType:             models.AuthType(rsp.UdmUeauAuthenticationInfoResult.AuthType),
+	authInfoResult := models.UdmUeauAuthenticationInfoResult{
+		AuthType:             rsp.UdmUeauAuthenticationInfoResult.AuthType,
 		SupportedFeatures:    rsp.UdmUeauAuthenticationInfoResult.SupportedFeatures,
 		AuthenticationVector: rsp.UdmUeauAuthenticationInfoResult.AuthenticationVector,
 		Supi:                 rsp.UdmUeauAuthenticationInfoResult.Supi,
