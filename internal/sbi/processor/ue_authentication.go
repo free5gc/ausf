@@ -64,7 +64,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 	ausfCurrentContext := ausf_context.GetAusfUeContext(currentSupi)
 	servingNetworkName := ausfCurrentContext.ServingNetworkName
 
-	if ausfCurrentContext.AuthStatus == models.AuthResult_FAILURE {
+	if ausfCurrentContext.AuthStatus == models.AusfUeAuthenticationAuthResult_FAILURE {
 		logger.AuthELog.Warnf("Authentication failed with status: %s", ausfCurrentContext.AuthStatus)
 		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, 0)
 		eapSession.EapPayload = eapFailPkt
@@ -135,13 +135,13 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 					c.JSON(http.StatusInternalServerError, problemDetails)
 					return
 				}
-				ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
+				ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_SUCCESS
 			} else {
 				eapOK = false
 				eapErrStr = "Wrong RES value, EAP-AKA' auth failed"
 			}
 		case ausf_context.AKA_AUTHENTICATION_REJECT_SUBTYPE:
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
 		case ausf_context.AKA_SYNCHRONIZATION_FAILURE_SUBTYPE:
 			logger.AuthELog.Warnf("EAP-AKA' synchronziation failure")
 			if ausfCurrentContext.Resynced {
@@ -160,12 +160,12 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 				return
 			}
 		case ausf_context.AKA_NOTIFICATION_SUBTYPE:
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
 		case ausf_context.AKA_CLIENT_ERROR_SUBTYPE:
 			logger.AuthELog.Warnf("EAP-AKA' failure: receive client-error")
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
 		default:
-			ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+			ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
 		}
 	}
 
@@ -182,7 +182,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 			return
 		}
 
-		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+		ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
 		eapSession.AuthResult = models.AusfUeAuthenticationAuthResult_ONGOING
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 		eapSession.EapPayload = failEapAkaNoti
@@ -191,7 +191,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 		linksValue := models.Link{Href: linkUrl}
 		eapSession.Links = make(map[string][]models.Link)
 		eapSession.Links["eap-session"] = []models.Link{linksValue}
-	} else if ausfCurrentContext.AuthStatus == models.AuthResult_FAILURE {
+	} else if ausfCurrentContext.AuthStatus == models.AusfUeAuthenticationAuthResult_FAILURE {
 		if sendErr := p.Consumer().SendAuthResultToUDM(eapSessionID, models.UdmUeauAuthType_EAP_AKA_PRIME, false,
 			servingNetworkName, ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())
@@ -267,7 +267,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	ueid := authInfoResult.Supi
 	ausfUeContext := ausf_context.NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
-	ausfUeContext.AuthStatus = models.AuthResult_ONGOING
+	ausfUeContext.AuthStatus = models.AusfUeAuthenticationAuthResult_ONGOING
 	ausfUeContext.UdmUeauUrl = udmUrl
 	ausf_context.AddAusfUeContextToPool(ausfUeContext)
 
@@ -276,7 +276,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 
 	locationURI := self.Url + factory.AusfAuthResUriPrefix + "/ue-authentications/" + supiOrSuci
 	putLink := locationURI
-	if authInfoResult.AuthType == models.AuthType__5_G_AKA {
+	if authInfoResult.AuthType == models.UdmUeauAuthType__5_G_AKA {
 		logger.UeAuthLog.Infoln("Use 5G AKA auth method")
 		putLink += "/5g-aka-confirmation"
 
@@ -343,7 +343,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 		linksValue := models.Link{Href: putLink}
 		responseBody.Links = make(map[string][]models.Link)
 		responseBody.Links["5g-aka"] = []models.Link{linksValue}
-	} else if authInfoResult.AuthType == models.AuthType_EAP_AKA_PRIME {
+	} else if authInfoResult.AuthType == models.UdmUeauAuthType_EAP_AKA_PRIME {
 		logger.UeAuthLog.Infoln("Use EAP-AKA' auth method")
 		putLink += "/eap-session"
 
@@ -490,17 +490,17 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(c *gin.Context, updateConfi
 	// Compare the received RES* with the stored XRES*
 	logger.Auth5gAkaLog.Infof("res*: %x\nXres*: %x\n", updateConfirmationData.ResStar, ausfCurrentContext.XresStar)
 	if strings.EqualFold(updateConfirmationData.ResStar, ausfCurrentContext.XresStar) {
-		ausfCurrentContext.AuthStatus = models.AuthResult_SUCCESS
+		ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_SUCCESS
 		confirmDataRsp.AuthResult = models.AusfUeAuthenticationAuthResult_SUCCESS
 		success = true
 		logger.Auth5gAkaLog.Infoln("5G AKA confirmation succeeded")
 		confirmDataRsp.Supi = currentSupi
 		confirmDataRsp.Kseaf = ausfCurrentContext.Kseaf
 	} else {
-		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
+		ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
 		confirmDataRsp.AuthResult = models.AusfUeAuthenticationAuthResult_FAILURE
-		p.logConfirmFailureAndInformUDM(ConfirmationDataResponseID, models.AuthType__5_G_AKA, servingNetworkName,
-			"5G AKA confirmation failed", ausfCurrentContext.UdmUeauUrl)
+		p.logConfirmFailureAndInformUDM(ConfirmationDataResponseID, models.AusfUeAuthenticationAuthType__5_G_AKA,
+			servingNetworkName, "5G AKA confirmation failed", ausfCurrentContext.UdmUeauUrl)
 	}
 
 	if sendErr := p.Consumer().SendAuthResultToUDM(currentSupi, models.UdmUeauAuthType__5_G_AKA, success,
@@ -821,16 +821,16 @@ func ConstructEapNoTypePkt(code radius.EapCode, pktID uint8) string {
 }
 
 func (p *Processor) logConfirmFailureAndInformUDM(
-	id string, authType models.AuthType, servingNetworkName, errStr, udmUrl string,
+	id string, authType models.AusfUeAuthenticationAuthType, servingNetworkName, errStr, udmUrl string,
 ) {
 	udmAuthType := models.UdmUeauAuthType(authType)
 
-	if authType == models.AuthType__5_G_AKA {
+	if authType == models.AusfUeAuthenticationAuthType__5_G_AKA {
 		logger.Auth5gAkaLog.Infoln(servingNetworkName, errStr)
 		if sendErr := p.Consumer().SendAuthResultToUDM(id, udmAuthType, false, "", udmUrl); sendErr != nil {
 			logger.Auth5gAkaLog.Infoln(sendErr.Error())
 		}
-	} else if authType == models.AuthType_EAP_AKA_PRIME {
+	} else if authType == models.AusfUeAuthenticationAuthType_EAP_AKA_PRIME {
 		logger.AuthELog.Infoln(errStr)
 		if sendErr := p.Consumer().SendAuthResultToUDM(id, udmAuthType, false, "", udmUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())

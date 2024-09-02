@@ -218,8 +218,8 @@ func (s *nnrfService) GetUdmUrl(nrfUri string) string {
 	} else if len(res.NfInstances) > 0 {
 		udmInstance := res.NfInstances[0]
 		if len(udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil {
-			ueauService := (udmInstance.NfServices)[0]
-			ueauEndPoint := (ueauService.IpEndPoints)[0]
+			ueauService := udmInstance.NfServices[0]
+			ueauEndPoint := ueauService.IpEndPoints[0]
 			udmUrl = string(ueauService.Scheme) + "://" + ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(int(ueauEndPoint.Port))
 		}
 	} else {
