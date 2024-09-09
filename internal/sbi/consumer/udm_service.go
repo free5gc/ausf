@@ -108,7 +108,9 @@ func (s *nudmService) GenerateAuthDataApi(
 	rsp, err := client.GenerateAuthDataApi.GenerateAuthData(ctx, request)
 	if err != nil {
 		var problemDetails models.ProblemDetails
-		if rsp.UdmUeauAuthenticationInfoResult.AuthenticationVector == nil {
+		if rsp == nil {
+			problemDetails.Cause = "NO_RESPONSE_FROM_SERVER"
+		} else if rsp.UdmUeauAuthenticationInfoResult.AuthenticationVector == nil {
 			problemDetails.Cause = "AV_GENERATION_PROBLEM"
 		} else {
 			problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
