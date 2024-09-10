@@ -90,13 +90,13 @@ func (s *nnrfService) SendSearchNFInstances(
 	}
 
 	res, err := client.NFInstancesStoreApi.SearchNFInstances(ctx, &param)
-	result := res.SearchResult
 
-	if err != nil {
+	if err != nil || res == nil {
 		logger.ConsumerLog.Errorf("SearchNFInstances failed: %+v", err)
 		return nil, err
 	}
 
+	result := res.SearchResult
 	return &result, err
 }
 
@@ -116,7 +116,15 @@ func (s *nnrfService) SendDeregisterNFInstance() (problemDetails *models.Problem
 	}
 
 	_, err = client.NFInstanceIDDocumentApi.DeregisterNFInstance(ctx, request)
-	return problemDetails, err
+
+	switch e := err.(type) {
+	case openapi.GenericOpenAPIError:
+		return e.Model().(*models.ProblemDetails), nil
+	case nil:
+		return nil, nil
+	default:
+		return nil, err
+	}
 }
 
 func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
