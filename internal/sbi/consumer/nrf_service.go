@@ -100,31 +100,22 @@ func (s *nnrfService) SendSearchNFInstances(
 	return &result, err
 }
 
-func (s *nnrfService) SendDeregisterNFInstance() (problemDetails *models.ProblemDetails, err error) {
+func (s *nnrfService) SendDeregisterNFInstance() (err error) {
 	logger.ConsumerLog.Infof("Send Deregister NFInstance")
 
-	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_NFM, models.NrfNfManagementNfType_NRF)
+	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_NFM, models.NrfNfManagementNfType_NRF)
 	if err != nil {
-		return pd, err
+		return err
 	}
 
 	ausfContext := s.consumer.Context()
 	client := s.getNFManagementClient(ausfContext.NrfUri)
 
-	request := &Nnrf_NFManagement.DeregisterNFInstanceRequest{
-		NfInstanceID: &ausfContext.NfId,
-	}
+	var derigisterNfInstanceRequest Nnrf_NFManagement.DeregisterNFInstanceRequest
+	derigisterNfInstanceRequest.NfInstanceID = &ausfContext.NfId
+	_, err = client.NFInstanceIDDocumentApi.DeregisterNFInstance(ctx, &derigisterNfInstanceRequest)
 
-	_, err = client.NFInstanceIDDocumentApi.DeregisterNFInstance(ctx, request)
-
-	switch e := err.(type) {
-	case openapi.GenericOpenAPIError:
-		return e.Model().(*models.ProblemDetails), nil
-	case nil:
-		return nil, nil
-	default:
-		return nil, err
-	}
+	return err
 }
 
 func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
