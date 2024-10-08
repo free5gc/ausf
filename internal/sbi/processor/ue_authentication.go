@@ -254,7 +254,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 
 	udmUrl := p.Consumer().GetUdmUrl(self.NrfUri)
 
-	result, err, pd := p.Consumer().GenerateAuthDataApi(udmUrl, supiOrSuci, authInfoReq)
+	result, locationUrl, err, pd := p.Consumer().GenerateAuthDataApi(udmUrl, supiOrSuci, authInfoReq)
 	if err != nil {
 		logger.UeAuthLog.Infof("GenerateAuthDataApi error: %+v", err)
 		c.JSON(http.StatusInternalServerError, pd)
@@ -266,14 +266,13 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	ausfUeContext := ausf_context.NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
 	ausfUeContext.AuthStatus = models.AuthResult_ONGOING
-	ausfUeContext.UdmUeauUrl = udmUrl
+	ausfUeContext.UdmUeauUrl = locationUrl
 	ausf_context.AddAusfUeContextToPool(ausfUeContext)
 
 	logger.UeAuthLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
 	ausf_context.AddSuciSupiPairToMap(supiOrSuci, ueid)
 
-	locationURI := self.Url + factory.AusfAuthResUriPrefix + "/ue-authentications/" + supiOrSuci
-	putLink := locationURI
+	putLink := locationUrl
 	if authInfoResult.AuthType == models.AuthType__5_G_AKA {
 		logger.UeAuthLog.Infoln("Use 5G AKA auth method")
 		putLink += "/5g-aka-confirmation"
@@ -440,7 +439,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 
 	responseBody.AuthType = authInfoResult.AuthType
 
-	c.Header("Location", locationURI)
+	c.Header("Location", locationUrl)
 	c.JSON(http.StatusCreated, responseBody)
 }
 

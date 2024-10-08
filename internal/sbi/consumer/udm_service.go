@@ -79,12 +79,12 @@ func (s *nudmService) GenerateAuthDataApi(
 	udmUrl string,
 	supiOrSuci string,
 	authInfoReq models.AuthenticationInfoRequest,
-) (*models.AuthenticationInfoResult, error, *models.ProblemDetails) {
+) (*models.AuthenticationInfoResult, string, error, *models.ProblemDetails) {
 	client := s.getUdmUeauClient(udmUrl)
 
 	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NUDM_UEAU, models.NfType_UDM)
 	if err != nil {
-		return nil, err, pd
+		return nil, "", err, pd
 	}
 
 	authInfoResult, rsp, err := client.GenerateAuthDataApi.GenerateAuthData(ctx, supiOrSuci, authInfoReq)
@@ -96,12 +96,15 @@ func (s *nudmService) GenerateAuthDataApi(
 			problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
 		}
 		problemDetails.Status = int32(rsp.StatusCode)
-		return nil, err, &problemDetails
+		return nil, "", err, &problemDetails
 	}
 	defer func() {
 		if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
 			logger.UeAuthLog.Errorf("GenerateAuthDataApi response body cannot close: %+v", rspCloseErr)
 		}
 	}()
-	return &authInfoResult, nil, nil
+
+	locationUrl := rsp.Header.Get("Location")
+
+	return &authInfoResult, locationUrl, nil, nil
 }
