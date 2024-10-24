@@ -16,8 +16,6 @@ import (
 	"github.com/free5gc/ausf/internal/sbi/processor"
 	"github.com/free5gc/ausf/pkg/app"
 	"github.com/free5gc/ausf/pkg/factory"
-	"github.com/free5gc/openapi"
-	"github.com/free5gc/openapi/nrf/NFManagement"
 )
 
 var AUSF *AusfApp
@@ -166,25 +164,15 @@ func (a *AusfApp) terminateProcedure() {
 	a.CallServerStop()
 
 	// deregister with NRF
-	err := a.Consumer().SendDeregisterNFInstance()
-	if err != nil {
-		switch apiErr := err.(type) {
-		case openapi.GenericOpenAPIError:
-			switch errModel := apiErr.Model().(type) {
-			case NFManagement.DeregisterNFInstanceError:
-				pd := &errModel.ProblemDetails
-				logger.InitLog.Errorf("Deregister NF instance Failed Problem[%+v]", pd)
-			case error:
-				logger.InitLog.Errorf("Deregister NF instance Error[%+v]", err)
-			}
-		case error:
-			logger.InitLog.Errorf("Deregister NF instance Error[%+v]", err)
-		}
+	problemDetails, err := a.Consumer().SendDeregisterNFInstance()
+	if problemDetails != nil {
+		logger.MainLog.Errorf("Deregister NF instance Failed Problem[%+v]", problemDetails)
+	} else if err != nil {
+		logger.MainLog.Errorf("Deregister NF instance Error[%+v]", err)
+	} else {
+		logger.MainLog.Infof("Deregister from NRF successfully")
 	}
-
-	logger.MainLog.Infof("Deregister from NRF successfully")
-
-	logger.MainLog.Infof("AUSF SBI Server terminated")
+	logger.MainLog.Infof("CHF SBI Server terminated")
 }
 
 func (a *AusfApp) CallServerStop() {

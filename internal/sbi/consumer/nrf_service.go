@@ -100,29 +100,35 @@ func (s *nnrfService) SendSearchNFInstances(
 	return &result, err
 }
 
-func (s *nnrfService) SendDeregisterNFInstance() (err error) {
-	logger.ConsumerLog.Infof("Send Deregister NFInstance")
+func (s *nnrfService) SendDeregisterNFInstance() (*models.ProblemDetails, error) {
+	logger.ConsumerLog.Infof("[AUSF] Send Deregister NFInstance")
 
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_NFM, models.NrfNfManagementNfType_NRF)
+	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_NFM, models.NrfNfManagementNfType_NRF)
 	if err != nil {
-		return err
+		return pd, err
 	}
 
 	ausfContext := s.consumer.Context()
 	client := s.getNFManagementClient(ausfContext.NrfUri)
+	request := &Nnrf_NFManagement.DeregisterNFInstanceRequest{
+		NfInstanceID: &ausfContext.NfId,
+	}
 
-	var derigisterNfInstanceRequest Nnrf_NFManagement.DeregisterNFInstanceRequest
-	derigisterNfInstanceRequest.NfInstanceID = &ausfContext.NfId
-	_, err = client.NFInstanceIDDocumentApi.DeregisterNFInstance(ctx, &derigisterNfInstanceRequest)
-
-	return err
+	_, err = client.NFInstanceIDDocumentApi.DeregisterNFInstance(ctx, request)
+	if apiErr, ok := err.(openapi.GenericOpenAPIError); ok {
+		// API error
+		if deregNfError, okDeg := apiErr.Model().(Nnrf_NFManagement.DeregisterNFInstanceError); okDeg {
+			return &deregNfError.ProblemDetails, err
+		}
+		return nil, err
+	}
+	return nil, err
 }
 
 func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 	resouceNrfUri string, retrieveNfInstanceID string, err error,
 ) {
 	ausfContext := s.consumer.Context()
-
 	client := s.getNFManagementClient(ausfContext.NrfUri)
 	nfProfile, err := s.buildNfProfile(ausfContext)
 	if err != nil {
@@ -136,6 +142,11 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 		NrfNfManagementNfProfile: &nfProfile,
 	}
 	for {
+		select {
+		case <-ctx.Done():
+			return "", "", errors.Errorf("Context Cancel before RegisterNFInstance")
+		default:
+		}
 		res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(ctx, registerNFInstanceRequest)
 		if err != nil || res == nil {
 			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
@@ -204,14 +215,18 @@ func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
 
 func (s *nnrfService) GetUdmUrl(nrfUri string) string {
 	udmUrl := "https://localhost:29503" // default
-	nfDiscoverParam := &Nnrf_NFDiscovery.SearchNFInstancesRequest{
-		ServiceNames: []models.ServiceName{models.ServiceName_NUDM_UEAU},
+	targetNfType := models.NrfNfManagementNfType_UDM
+	requestNfType := models.NrfNfManagementNfType_AUSF
+	nfDiscoverParam := Nnrf_NFDiscovery.SearchNFInstancesRequest{
+		RequesterNfType: &requestNfType,
+		TargetNfType:    &targetNfType,
+		ServiceNames:    []models.ServiceName{models.ServiceName_NUDM_UEAU},
 	}
 	res, err := s.SendSearchNFInstances(
 		nrfUri,
 		models.NrfNfManagementNfType_UDM,
 		models.NrfNfManagementNfType_AUSF,
-		*nfDiscoverParam,
+		nfDiscoverParam,
 	)
 	if err != nil {
 		logger.ConsumerLog.Errorln("[Search UDM UEAU] ", err.Error(), "use defalt udmUrl", udmUrl)
