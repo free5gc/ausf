@@ -24,7 +24,7 @@ type nudmService struct {
 	ueauClients map[string]*udm_ueau.ClientWithResponses
 }
 
-func (s *nudmService) getUdmUeauClient(uri string) (*udm_ueau.ClientWithResponses, error) {
+func (s *nudmService) getUdmUeauClient(ctx context.Context, uri string) (*udm_ueau.ClientWithResponses, error) {
 	if uri == "" {
 		return nil, fmt.Errorf("empty URI")
 	}
@@ -35,8 +35,7 @@ func (s *nudmService) getUdmUeauClient(uri string) (*udm_ueau.ClientWithResponse
 		return client, nil
 	}
 
-	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(),
-		models.ServiceNameNudmUeau, models.NFTypeUDM)
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(ctx, models.ServiceNameNudmUeau, models.NFTypeUDM)
 	if err != nil {
 		s.ueauMu.RUnlock()
 		return nil, err
@@ -60,6 +59,7 @@ func (s *nudmService) getUdmUeauClient(uri string) (*udm_ueau.ClientWithResponse
 }
 
 func (s *nudmService) SendAuthResultToUDM(
+	ctx context.Context,
 	id string,
 	authType models.AuthType,
 	success bool,
@@ -77,12 +77,12 @@ func (s *nudmService) SendAuthResultToUDM(
 		NfInstanceId:       self.GetSelfID(),
 	}
 
-	client, err := s.getUdmUeauClient(udmUrl)
+	client, err := s.getUdmUeauClient(ctx, udmUrl)
 	if err != nil {
 		return err
 	}
 
-	rsp, err := client.ConfirmAuthWithResponse(context.Background(), id, authEvent)
+	rsp, err := client.ConfirmAuthWithResponse(ctx, id, authEvent)
 	if err != nil || rsp.StatusCode() != http.StatusCreated {
 		return utils_error.ExtractAndWrapOpenAPIError("udm_ueau.ConfirmAuthWithResponse", rsp, err)
 	}
@@ -90,16 +90,17 @@ func (s *nudmService) SendAuthResultToUDM(
 }
 
 func (s *nudmService) GenerateAuthDataApi(
+	ctx context.Context,
 	udmUrl string,
 	supiOrSuci models.SupiOrSuci,
 	authInfoReq models.AuthenticationInfoRequest,
 ) (*models.AuthenticationInfoResult, error, *models.ProblemDetails) {
-	client, err := s.getUdmUeauClient(udmUrl)
+	client, err := s.getUdmUeauClient(ctx, udmUrl)
 	if err != nil {
 		return nil, err, nil
 	}
 
-	rsp, err := client.GenerateAuthDataWithResponse(context.TODO(), supiOrSuci, authInfoReq)
+	rsp, err := client.GenerateAuthDataWithResponse(ctx, supiOrSuci, authInfoReq)
 	if err != nil || rsp.JSON200 == nil {
 		err = utils_error.ExtractAndWrapOpenAPIError("udm_ueau.GenerateAuthDataWithResponse", rsp, err)
 		return nil, err, lo.ToPtr(utils_error.ErrorToProblemDetails(err))

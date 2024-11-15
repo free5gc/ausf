@@ -32,7 +32,9 @@ type nnrfService struct {
 	nfDiscClients   map[string]*nrf_discovery.ClientWithResponses
 }
 
-func (s *nnrfService) getNFManagementClient(uri string) (*nrf_management.ClientWithResponses, error) {
+func (s *nnrfService) getNFManagementClient(ctx context.Context, uri string) (
+	*nrf_management.ClientWithResponses, error,
+) {
 	if uri == "" {
 		return nil, fmt.Errorf("empty URI")
 	}
@@ -43,8 +45,7 @@ func (s *nnrfService) getNFManagementClient(uri string) (*nrf_management.ClientW
 		return client, nil
 	}
 
-	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(),
-		models.ServiceNameNnrfNfm, models.NFTypeNRF)
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(ctx, models.ServiceNameNnrfNfm, models.NFTypeNRF)
 	if err != nil {
 		s.nfMngmntMu.RUnlock()
 		return nil, err
@@ -67,7 +68,7 @@ func (s *nnrfService) getNFManagementClient(uri string) (*nrf_management.ClientW
 	return client, nil
 }
 
-func (s *nnrfService) getNFDiscClient(uri string) (*nrf_discovery.ClientWithResponses, error) {
+func (s *nnrfService) getNFDiscClient(ctx context.Context, uri string) (*nrf_discovery.ClientWithResponses, error) {
 	if uri == "" {
 		return nil, fmt.Errorf("empty URI")
 	}
@@ -78,8 +79,7 @@ func (s *nnrfService) getNFDiscClient(uri string) (*nrf_discovery.ClientWithResp
 		return client, nil
 	}
 
-	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(),
-		models.ServiceNameNnrfDisc, models.NFTypeNRF)
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(ctx, models.ServiceNameNnrfDisc, models.NFTypeNRF)
 	if err != nil {
 		s.nfDiscMu.RUnlock()
 		return nil, err
@@ -102,18 +102,18 @@ func (s *nnrfService) getNFDiscClient(uri string) (*nrf_discovery.ClientWithResp
 	return client, nil
 }
 
-func (s *nnrfService) SendSearchNFInstances(
+func (s *nnrfService) SendSearchNFInstances(ctx context.Context,
 	nrfUri string, targetNfType, requestNfType models.NFType, param nrf_discovery.SearchNFInstancesParams) (
 	*models.SearchResult, error,
 ) {
 	// Set client and set url
-	client, err := s.getNFDiscClient(nrfUri)
+	client, err := s.getNFDiscClient(ctx, nrfUri)
 	if err != nil {
 		return nil, err
 	}
 	param.TargetNfType = targetNfType
 	param.RequesterNfType = requestNfType
-	rsp, err := client.SearchNFInstancesWithResponse(context.TODO(), &param)
+	rsp, err := client.SearchNFInstancesWithResponse(ctx, &param)
 
 	if err != nil || rsp.JSON200 == nil {
 		return nil, utils_error.ExtractAndWrapOpenAPIError("nrf_discovery.SearchNFInstancesWithResponse", rsp, err)
@@ -121,16 +121,16 @@ func (s *nnrfService) SendSearchNFInstances(
 	return rsp.JSON200, nil
 }
 
-func (s *nnrfService) SendDeregisterNFInstance() (*models.ProblemDetails, error) {
+func (s *nnrfService) SendDeregisterNFInstance(ctx context.Context) (*models.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("Send Deregister NFInstance")
 
 	ausfContext := s.consumer.Context()
-	client, err := s.getNFManagementClient(ausfContext.NrfUri)
+	client, err := s.getNFManagementClient(ctx, ausfContext.NrfUri)
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := client.DeregisterNFInstanceWithResponse(context.Background(), ausfContext.NfId)
+	res, err := client.DeregisterNFInstanceWithResponse(ctx, ausfContext.NfId)
 	if err != nil {
 		return nil, fmt.Errorf("nrf_management.DeregisterNFInstanceWithResponse: %w", err)
 	}
@@ -146,7 +146,7 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 ) {
 	ausfContext := s.consumer.Context()
 
-	client, err := s.getNFManagementClient(ausfContext.NrfUri)
+	client, err := s.getNFManagementClient(ctx, ausfContext.NrfUri)
 	if err != nil {
 		return "", uuid.Nil, err
 	}
@@ -158,7 +158,7 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 
 	for {
 		var res *nrf_management.RegisterNFInstanceResponse
-		res, err = client.RegisterNFInstanceWithResponse(context.TODO(), ausfContext.NfId, nil, nfProfile)
+		res, err = client.RegisterNFInstanceWithResponse(ctx, ausfContext.NfId, nil, nfProfile)
 		if err != nil || res == nil {
 			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 			time.Sleep(2 * time.Second)
@@ -227,12 +227,13 @@ func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
 	return
 }
 
-func (s *nnrfService) GetUdmUrl(nrfUri string) string {
+func (s *nnrfService) GetUdmUrl(ctx context.Context, nrfUri string) string {
 	udmUrl := "https://localhost:29503" // default
 	nfDiscoverParam := nrf_discovery.SearchNFInstancesParams{
 		ServiceNames: &[]models.ServiceName{models.ServiceNameNudmUeau},
 	}
 	res, err := s.SendSearchNFInstances(
+		ctx,
 		nrfUri,
 		models.NFTypeUDM,
 		models.NFTypeAUSF,
