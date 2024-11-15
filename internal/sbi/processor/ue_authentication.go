@@ -35,19 +35,12 @@ import (
 
 func NewServerAusfAuthentication(processor *Processor) ausf_authentication.ServerInterface {
 	return ausf_authentication.NewStrictHandler(
-		&ausfAuthenticationStrictServer{
-			processor: processor,
-		},
-		[]strictgin.StrictGinMiddlewareFunc{middleware.GinStrictServerMiddleware},
+		processor, []strictgin.StrictGinMiddlewareFunc{middleware.GinStrictServerMiddleware},
 	)
 }
 
-type ausfAuthenticationStrictServer struct {
-	processor *Processor
-}
-
 // (POST /rg-authentications)
-func (s *ausfAuthenticationStrictServer) PostRgAuthentications(ctx context.Context,
+func (p *Processor) PostRgAuthentications(ctx context.Context,
 	request ausf_authentication.PostRgAuthenticationsRequestObject) (
 	ausf_authentication.PostRgAuthenticationsResponseObject, error,
 ) {
@@ -55,7 +48,7 @@ func (s *ausfAuthenticationStrictServer) PostRgAuthentications(ctx context.Conte
 }
 
 // (POST /ue-authentications/deregister)
-func (s *ausfAuthenticationStrictServer) PostUeAuthenticationsDeregister(
+func (p *Processor) PostUeAuthenticationsDeregister(
 	ctx context.Context, request ausf_authentication.PostUeAuthenticationsDeregisterRequestObject) (
 	ausf_authentication.PostUeAuthenticationsDeregisterResponseObject, error,
 ) {
@@ -64,7 +57,7 @@ func (s *ausfAuthenticationStrictServer) PostUeAuthenticationsDeregister(
 
 // Deletes the authentication result in the UDM
 // (DELETE /ue-authentications/{authCtxId}/5g-aka-confirmation)
-func (s *ausfAuthenticationStrictServer) Delete5gAkaAuthenticationResult(
+func (p *Processor) Delete5gAkaAuthenticationResult(
 	ctx context.Context, request ausf_authentication.Delete5gAkaAuthenticationResultRequestObject) (
 	ausf_authentication.Delete5gAkaAuthenticationResultResponseObject, error,
 ) {
@@ -73,7 +66,7 @@ func (s *ausfAuthenticationStrictServer) Delete5gAkaAuthenticationResult(
 
 // Deletes the authentication result in the UDM
 // (DELETE /ue-authentications/{authCtxId}/eap-session)
-func (s *ausfAuthenticationStrictServer) DeleteEapAuthenticationResult(
+func (p *Processor) DeleteEapAuthenticationResult(
 	ctx context.Context, request ausf_authentication.DeleteEapAuthenticationResultRequestObject) (
 	ausf_authentication.DeleteEapAuthenticationResultResponseObject, error,
 ) {
@@ -81,7 +74,7 @@ func (s *ausfAuthenticationStrictServer) DeleteEapAuthenticationResult(
 }
 
 // (POST /ue-authentications/{authCtxId}/eap-session)
-func (s *ausfAuthenticationStrictServer) EapAuthMethod(ctx context.Context,
+func (p *Processor) EapAuthMethod(ctx context.Context,
 	request ausf_authentication.EapAuthMethodRequestObject,
 ) (ausf_authentication.EapAuthMethodResponseObject, error) {
 	logger.Auth5gAkaLog.Infof("EapAuthComfirmRequest")
@@ -178,7 +171,7 @@ func (s *ausfAuthenticationStrictServer) EapAuthMethod(ctx context.Context,
 				eapSuccPkt := ConstructEapNoTypePkt(radius.EapCodeSuccess, eapContent.Id)
 				eapSession.EapPayload = &eapSuccPkt
 				udmUrl := ausfCurrentContext.UdmUeauUrl
-				if sendErr := s.processor.Consumer().SendAuthResultToUDM(
+				if sendErr := p.Consumer().SendAuthResultToUDM(
 					ctx,
 					eapSessionID,
 					models.AuthTypeEAPAKAPRIME,
@@ -216,7 +209,7 @@ func (s *ausfAuthenticationStrictServer) EapAuthMethod(ctx context.Context,
 				authInfo.SupiOrSuci = eapSessionID
 				authInfo.ServingNetworkName = servingNetworkName
 				authInfo.ResynchronizationInfo = resynchronizationInfo
-				response, _, problemDetails := s.processor.UeAuthPostRequestProcedure(ctx, authInfo)
+				response, _, problemDetails := p.UeAuthPostRequestProcedure(ctx, authInfo)
 				if problemDetails != nil {
 					return ausf_authentication.EapAuthMethoddefaultApplicationProblemPlusJSONResponse{
 						StatusCode: problemDetails.Status,
@@ -244,7 +237,7 @@ func (s *ausfAuthenticationStrictServer) EapAuthMethod(ctx context.Context,
 
 	if !eapOK {
 		logger.AuthELog.Warnf("EAP-AKA' failure: %s", eapErrStr)
-		if sendErr := s.processor.Consumer().SendAuthResultToUDM(ctx, eapSessionID, models.AuthTypeEAPAKAPRIME, false,
+		if sendErr := p.Consumer().SendAuthResultToUDM(ctx, eapSessionID, models.AuthTypeEAPAKAPRIME, false,
 			servingNetworkName, ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())
 			problemDetails := models.ProblemDetails{
@@ -274,7 +267,7 @@ func (s *ausfAuthenticationStrictServer) EapAuthMethod(ctx context.Context,
 		eapSession.Links = &map[string]models.LinksValueSchema{}
 		(*eapSession.Links)["eap-session"] = linksValue
 	} else if ausfCurrentContext.AuthStatus == models.AUTHENTICATIONFAILURE {
-		if sendErr := s.processor.Consumer().SendAuthResultToUDM(ctx, eapSessionID, models.AuthTypeEAPAKAPRIME, false,
+		if sendErr := p.Consumer().SendAuthResultToUDM(ctx, eapSessionID, models.AuthTypeEAPAKAPRIME, false,
 			servingNetworkName, ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())
 			var problemDetails models.ProblemDetails
@@ -291,7 +284,7 @@ func (s *ausfAuthenticationStrictServer) EapAuthMethod(ctx context.Context,
 }
 
 // (POST /ue-authentications)
-func (s *ausfAuthenticationStrictServer) PostUeAuthentications(ctx context.Context,
+func (p *Processor) PostUeAuthentications(ctx context.Context,
 	request ausf_authentication.PostUeAuthenticationsRequestObject) (
 	ausf_authentication.PostUeAuthenticationsResponseObject, error,
 ) {
@@ -306,7 +299,7 @@ func (s *ausfAuthenticationStrictServer) PostUeAuthentications(ctx context.Conte
 
 	updateAuthenticationInfo := *request.Body
 
-	response, locationURI, problemDetails := s.processor.UeAuthPostRequestProcedure(ctx, updateAuthenticationInfo)
+	response, locationURI, problemDetails := p.UeAuthPostRequestProcedure(ctx, updateAuthenticationInfo)
 
 	if response != nil {
 		return ausf_authentication.PostUeAuthentications201Application3gppHalPlusJSONResponse{
@@ -617,7 +610,7 @@ func (p *Processor) UeAuthPostRequestProcedure(ctx context.Context, updateAuthen
 }
 
 // (PUT /ue-authentications/{authCtxId}/5g-aka-confirmation)
-func (s *ausfAuthenticationStrictServer) PutUeAuthenticationsAuthCtxId5gAkaConfirmation(ctx context.Context,
+func (p *Processor) PutUeAuthenticationsAuthCtxId5gAkaConfirmation(ctx context.Context,
 	request ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmationRequestObject) (
 	ausf_authentication.PutUeAuthenticationsAuthCtxId5gAkaConfirmationResponseObject, error,
 ) {
@@ -672,11 +665,11 @@ func (s *ausfAuthenticationStrictServer) PutUeAuthenticationsAuthCtxId5gAkaConfi
 	} else {
 		ausfCurrentContext.AuthStatus = models.AUTHENTICATIONFAILURE
 		confirmDataRsp.AuthResult = models.AUTHENTICATIONFAILURE
-		s.processor.logConfirmFailureAndInformUDM(ctx, ConfirmationDataResponseID, models.AuthTypeN5GAKA, servingNetworkName,
+		p.logConfirmFailureAndInformUDM(ctx, ConfirmationDataResponseID, models.AuthTypeN5GAKA, servingNetworkName,
 			"5G AKA confirmation failed", ausfCurrentContext.UdmUeauUrl)
 	}
 
-	if sendErr := s.processor.Consumer().SendAuthResultToUDM(ctx, currentSupi, models.AuthTypeN5GAKA, success,
+	if sendErr := p.Consumer().SendAuthResultToUDM(ctx, currentSupi, models.AuthTypeN5GAKA, success,
 		servingNetworkName, ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 		logger.Auth5gAkaLog.Infoln(sendErr.Error())
 		problemDetails := models.ProblemDetails{

@@ -11,20 +11,12 @@ import (
 
 func NewServerAusfUpuProtection(processor *Processor) ausf_upu_protection.ServerInterface {
 	return ausf_upu_protection.NewStrictHandler(
-		&ausfUpuProtectionStrictServer{
-			processor: processor,
-		},
-		[]strictgin.StrictGinMiddlewareFunc{middleware.GinStrictServerMiddleware},
+		processor, []strictgin.StrictGinMiddlewareFunc{middleware.GinStrictServerMiddleware},
 	)
 }
 
-type ausfUpuProtectionStrictServer struct {
-	processor *Processor
-}
-
 // (POST /{supi}/ue-upu)
-func (s *ausfUpuProtectionStrictServer) PostSupiUeUpu(ctx context.Context,
-	request ausf_upu_protection.PostSupiUeUpuRequestObject,
+func (p *Processor) PostSupiUeUpu(ctx context.Context, request ausf_upu_protection.PostSupiUeUpuRequestObject,
 ) (ausf_upu_protection.PostSupiUeUpuResponseObject, error) {
 	return nil, errors.New("not implemented")
 }
