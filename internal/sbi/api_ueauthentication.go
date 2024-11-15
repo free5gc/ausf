@@ -14,11 +14,12 @@ package sbi
 import (
 	"net/http"
 
+	"github.com/ShouheiNishi/openapi5g/models"
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi"
-	"github.com/free5gc/openapi/models"
 )
 
 // Index is the index handler.
@@ -58,10 +59,10 @@ func (s *Server) EapAuthMethodPost(c *gin.Context) {
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := models.ProblemDetails{
-			Title:  "System failure",
+			Title:  lo.ToPtr("System failure"),
 			Status: http.StatusInternalServerError,
-			Detail: err.Error(),
-			Cause:  "SYSTEM_FAILURE",
+			Detail: lo.ToPtr(err.Error()),
+			Cause:  lo.ToPtr("SYSTEM_FAILURE"),
 		}
 		logger.Auth5gAkaLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
@@ -72,9 +73,9 @@ func (s *Server) EapAuthMethodPost(c *gin.Context) {
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := models.ProblemDetails{
-			Title:  "Malformed request syntax",
+			Title:  lo.ToPtr("Malformed request syntax"),
 			Status: http.StatusBadRequest,
-			Detail: problemDetail,
+			Detail: &problemDetail,
 		}
 		logger.Auth5gAkaLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
@@ -92,10 +93,10 @@ func (s *Server) UeAuthenticationsPost(c *gin.Context) {
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := models.ProblemDetails{
-			Title:  "System failure",
+			Title:  lo.ToPtr("System failure"),
 			Status: http.StatusInternalServerError,
-			Detail: err.Error(),
-			Cause:  "SYSTEM_FAILURE",
+			Detail: lo.ToPtr(err.Error()),
+			Cause:  lo.ToPtr("SYSTEM_FAILURE"),
 		}
 		logger.UeAuthLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
@@ -106,9 +107,9 @@ func (s *Server) UeAuthenticationsPost(c *gin.Context) {
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := models.ProblemDetails{
-			Title:  "Malformed request syntax",
+			Title:  lo.ToPtr("Malformed request syntax"),
 			Status: http.StatusBadRequest,
-			Detail: problemDetail,
+			Detail: &problemDetail,
 		}
 		logger.UeAuthLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
@@ -125,10 +126,10 @@ func (s *Server) UeAuthenticationsAuthCtxID5gAkaConfirmationPut(c *gin.Context) 
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		problemDetail := models.ProblemDetails{
-			Title:  "System failure",
+			Title:  lo.ToPtr("System failure"),
 			Status: http.StatusInternalServerError,
-			Detail: err.Error(),
-			Cause:  "SYSTEM_FAILURE",
+			Detail: lo.ToPtr(err.Error()),
+			Cause:  lo.ToPtr("SYSTEM_FAILURE"),
 		}
 		logger.Auth5gAkaLog.Errorf("Get Request Body error: %+v", err)
 		c.JSON(http.StatusInternalServerError, problemDetail)
@@ -139,9 +140,9 @@ func (s *Server) UeAuthenticationsAuthCtxID5gAkaConfirmationPut(c *gin.Context) 
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
 		rsp := models.ProblemDetails{
-			Title:  "Malformed request syntax",
+			Title:  lo.ToPtr("Malformed request syntax"),
 			Status: http.StatusBadRequest,
-			Detail: problemDetail,
+			Detail: &problemDetail,
 		}
 		logger.Auth5gAkaLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)

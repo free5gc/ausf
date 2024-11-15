@@ -39,7 +39,7 @@ type AusfUeContext struct {
 	Kausf              string
 	Kseaf              string
 	ServingNetworkName string
-	AuthStatus         oldModels.AuthResult
+	AuthStatus         models.AuthResult
 	UdmUeauUrl         string
 
 	// for 5G AKA

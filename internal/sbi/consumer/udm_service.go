@@ -2,7 +2,6 @@ package consumer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
@@ -12,7 +11,6 @@ import (
 	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
 	utils_error "github.com/ShouheiNishi/openapi5g/utils/error"
 	ausf_context "github.com/free5gc/ausf/internal/context"
-	oldModels "github.com/free5gc/openapi/models"
 	"github.com/free5gc/util/httpclient"
 	"github.com/samber/lo"
 )
@@ -90,34 +88,6 @@ func (s *nudmService) SendAuthResultToUDM(
 }
 
 func (s *nudmService) GenerateAuthDataApi(
-	udmUrl string,
-	supiOrSuci string,
-	oldAuthInfoReq oldModels.AuthenticationInfoRequest,
-) (*oldModels.AuthenticationInfoResult, error, *models.ProblemDetails) {
-	var newAuthInfoReq models.AuthenticationInfoRequest
-	if buf, err := json.Marshal(oldAuthInfoReq); err != nil {
-		return nil, err, nil
-	} else if err := json.Unmarshal(buf, &newAuthInfoReq); err != nil {
-		return nil, err, nil
-	} else {
-		newResult, errOrig, pd := s.realGenerateAuthDataApi(udmUrl, models.SupiOrSuci(supiOrSuci), newAuthInfoReq)
-		if newResult == nil {
-			return nil, errOrig, pd
-		}
-		if buf, err := json.Marshal(newResult); err != nil {
-			return nil, err, nil
-		} else {
-			var oldResult oldModels.AuthenticationInfoResult
-			if err := json.Unmarshal(buf, &oldResult); err != nil {
-				return nil, err, nil
-			} else {
-				return &oldResult, errOrig, nil
-			}
-		}
-	}
-}
-
-func (s *nudmService) realGenerateAuthDataApi(
 	udmUrl string,
 	supiOrSuci models.SupiOrSuci,
 	authInfoReq models.AuthenticationInfoRequest,
