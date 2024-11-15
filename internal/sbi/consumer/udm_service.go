@@ -1,13 +1,20 @@
 package consumer
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
+	"github.com/ShouheiNishi/openapi5g/models"
+	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
+	utils_error "github.com/ShouheiNishi/openapi5g/utils/error"
 	ausf_context "github.com/free5gc/ausf/internal/context"
-	"github.com/free5gc/ausf/internal/logger"
-	Nudm_UEAU "github.com/free5gc/openapi/Nudm_UEAuthentication"
-	"github.com/free5gc/openapi/models"
+	oldModels "github.com/free5gc/openapi/models"
+	"github.com/free5gc/util/httpclient"
+	"github.com/samber/lo"
 )
 
 type nudmService struct {
@@ -15,29 +22,41 @@ type nudmService struct {
 
 	ueauMu sync.RWMutex
 
-	ueauClients map[string]*Nudm_UEAU.APIClient
+	ueauClients map[string]*udm_ueau.ClientWithResponses
 }
 
-func (s *nudmService) getUdmUeauClient(uri string) *Nudm_UEAU.APIClient {
+func (s *nudmService) getUdmUeauClient(uri string) (*udm_ueau.ClientWithResponses, error) {
 	if uri == "" {
-		return nil
+		return nil, fmt.Errorf("empty URI")
 	}
 	s.ueauMu.RLock()
 	client, ok := s.ueauClients[uri]
 	if ok {
 		s.ueauMu.RUnlock()
-		return client
+		return client, nil
 	}
 
-	configuration := Nudm_UEAU.NewConfiguration()
-	configuration.SetBasePath(uri)
-	client = Nudm_UEAU.NewAPIClient(configuration)
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), models.ServiceNameNudmUeau, models.NFTypeUDM)
+	if err != nil {
+		s.ueauMu.RUnlock()
+		return nil, err
+	}
+
+	uriFull := uri + "/nudm-ueau/v1"
+	client, err = udm_ueau.NewClientWithResponses(uriFull, func(c *udm_ueau.Client) error {
+		c.Client = httpclient.GetHttpClient(uriFull)
+		return nil
+	}, udm_ueau.WithRequestEditorFn(editor))
+	if err != nil {
+		s.ueauMu.RUnlock()
+		return nil, err
+	}
 
 	s.ueauMu.RUnlock()
 	s.ueauMu.Lock()
 	defer s.ueauMu.Unlock()
 	s.ueauClients[uri] = client
-	return client
+	return client, nil
 }
 
 func (s *nudmService) SendAuthResultToUDM(
@@ -47,61 +66,71 @@ func (s *nudmService) SendAuthResultToUDM(
 	servingNetworkName, udmUrl string,
 ) error {
 	timeNow := time.Now()
-	timePtr := &timeNow
 
 	self := s.consumer.Context()
 
 	authEvent := models.AuthEvent{
-		TimeStamp:          timePtr,
+		TimeStamp:          timeNow,
 		AuthType:           authType,
 		Success:            success,
 		ServingNetworkName: servingNetworkName,
-		NfInstanceId:       self.GetSelfID().String(),
+		NfInstanceId:       self.GetSelfID(),
 	}
 
-	client := s.getUdmUeauClient(udmUrl)
-
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NUDM_UEAU, models.NfType_UDM)
+	client, err := s.getUdmUeauClient(udmUrl)
 	if err != nil {
 		return err
 	}
 
-	_, rsp, confirmAuthErr := client.ConfirmAuthApi.ConfirmAuth(ctx, id, authEvent)
-	defer func() {
-		if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-			logger.ConsumerLog.Errorf("ConfirmAuth Response cannot close: %v", rspCloseErr)
-		}
-	}()
-	return confirmAuthErr
+	rsp, err := client.ConfirmAuthWithResponse(context.Background(), id, authEvent)
+	if err != nil || rsp.StatusCode() != http.StatusCreated {
+		return utils_error.ExtractAndWrapOpenAPIError("udm_ueau.ConfirmAuthWithResponse", rsp, err)
+	}
+	return nil
 }
 
 func (s *nudmService) GenerateAuthDataApi(
 	udmUrl string,
 	supiOrSuci string,
+	oldAuthInfoReq oldModels.AuthenticationInfoRequest,
+) (*oldModels.AuthenticationInfoResult, error, *models.ProblemDetails) {
+	var newAuthInfoReq models.AuthenticationInfoRequest
+	if buf, err := json.Marshal(oldAuthInfoReq); err != nil {
+		return nil, err, nil
+	} else if err := json.Unmarshal(buf, &newAuthInfoReq); err != nil {
+		return nil, err, nil
+	} else {
+		newResult, errOrig, pd := s.realGenerateAuthDataApi(udmUrl, models.SupiOrSuci(supiOrSuci), newAuthInfoReq)
+		if newResult == nil {
+			return nil, errOrig, pd
+		}
+		if buf, err := json.Marshal(newResult); err != nil {
+			return nil, err, nil
+		} else {
+			var oldResult oldModels.AuthenticationInfoResult
+			if err := json.Unmarshal(buf, &oldResult); err != nil {
+				return nil, err, nil
+			} else {
+				return &oldResult, errOrig, nil
+			}
+		}
+	}
+}
+
+func (s *nudmService) realGenerateAuthDataApi(
+	udmUrl string,
+	supiOrSuci models.SupiOrSuci,
 	authInfoReq models.AuthenticationInfoRequest,
 ) (*models.AuthenticationInfoResult, error, *models.ProblemDetails) {
-	client := s.getUdmUeauClient(udmUrl)
-
-	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NUDM_UEAU, models.NfType_UDM)
+	client, err := s.getUdmUeauClient(udmUrl)
 	if err != nil {
-		return nil, err, pd
+		return nil, err, nil
 	}
 
-	authInfoResult, rsp, err := client.GenerateAuthDataApi.GenerateAuthData(ctx, supiOrSuci, authInfoReq)
-	if err != nil {
-		var problemDetails models.ProblemDetails
-		if authInfoResult.AuthenticationVector == nil {
-			problemDetails.Cause = "AV_GENERATION_PROBLEM"
-		} else {
-			problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
-		}
-		problemDetails.Status = int32(rsp.StatusCode)
-		return nil, err, &problemDetails
+	rsp, err := client.GenerateAuthDataWithResponse(context.TODO(), supiOrSuci, authInfoReq)
+	if err != nil || rsp.JSON200 == nil {
+		err = utils_error.ExtractAndWrapOpenAPIError("udm_ueau.GenerateAuthDataWithResponse", rsp, err)
+		return nil, err, lo.ToPtr(utils_error.ErrorToProblemDetails(err))
 	}
-	defer func() {
-		if rspCloseErr := rsp.Body.Close(); rspCloseErr != nil {
-			logger.UeAuthLog.Errorf("GenerateAuthDataApi response body cannot close: %+v", rspCloseErr)
-		}
-	}()
-	return &authInfoResult, nil, nil
+	return rsp.JSON200, nil, nil
 }

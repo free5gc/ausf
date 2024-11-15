@@ -15,16 +15,16 @@ import (
 	"strings"
 	"time"
 
+	newModels "github.com/ShouheiNishi/openapi5g/models"
 	"github.com/bronze1man/radius"
-	"github.com/gin-gonic/gin"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi/models"
 	"github.com/free5gc/util/ueauth"
+	"github.com/gin-gonic/gin"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
 func (p *Processor) HandleEapAuthComfirmRequest(c *gin.Context, eapSession models.EapSession, eapSessionId string) {
@@ -124,7 +124,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 				udmUrl := ausfCurrentContext.UdmUeauUrl
 				if sendErr := p.Consumer().SendAuthResultToUDM(
 					eapSessionID,
-					models.AuthType_EAP_AKA_PRIME,
+					newModels.AuthTypeEAPAKAPRIME,
 					true,
 					servingNetworkName,
 					udmUrl); sendErr != nil {
@@ -171,7 +171,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 
 	if !eapOK {
 		logger.AuthELog.Warnf("EAP-AKA' failure: %s", eapErrStr)
-		if sendErr := p.Consumer().SendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, false, servingNetworkName,
+		if sendErr := p.Consumer().SendAuthResultToUDM(eapSessionID, newModels.AuthTypeEAPAKAPRIME, false, servingNetworkName,
 			ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())
 			problemDetails := models.ProblemDetails{
@@ -192,7 +192,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 		eapSession.Links = make(map[string]models.LinksValueSchema)
 		eapSession.Links["eap-session"] = linksValue
 	} else if ausfCurrentContext.AuthStatus == models.AuthResult_FAILURE {
-		if sendErr := p.Consumer().SendAuthResultToUDM(eapSessionID, models.AuthType_EAP_AKA_PRIME, false, servingNetworkName,
+		if sendErr := p.Consumer().SendAuthResultToUDM(eapSessionID, newModels.AuthTypeEAPAKAPRIME, false, servingNetworkName,
 			ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())
 			var problemDetails models.ProblemDetails
@@ -497,11 +497,11 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(c *gin.Context, updateConfi
 	} else {
 		ausfCurrentContext.AuthStatus = models.AuthResult_FAILURE
 		confirmDataRsp.AuthResult = models.AuthResult_FAILURE
-		p.logConfirmFailureAndInformUDM(ConfirmationDataResponseID, models.AuthType__5_G_AKA, servingNetworkName,
+		p.logConfirmFailureAndInformUDM(ConfirmationDataResponseID, newModels.AuthTypeN5GAKA, servingNetworkName,
 			"5G AKA confirmation failed", ausfCurrentContext.UdmUeauUrl)
 	}
 
-	if sendErr := p.Consumer().SendAuthResultToUDM(currentSupi, models.AuthType__5_G_AKA, success, servingNetworkName,
+	if sendErr := p.Consumer().SendAuthResultToUDM(currentSupi, newModels.AuthTypeN5GAKA, success, servingNetworkName,
 		ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 		logger.Auth5gAkaLog.Infoln(sendErr.Error())
 		problemDetails := models.ProblemDetails{
@@ -819,14 +819,14 @@ func ConstructEapNoTypePkt(code radius.EapCode, pktID uint8) string {
 }
 
 func (p *Processor) logConfirmFailureAndInformUDM(
-	id string, authType models.AuthType, servingNetworkName, errStr, udmUrl string,
+	id string, authType newModels.AuthType, servingNetworkName, errStr, udmUrl string,
 ) {
-	if authType == models.AuthType__5_G_AKA {
+	if authType == newModels.AuthTypeN5GAKA {
 		logger.Auth5gAkaLog.Infoln(servingNetworkName, errStr)
 		if sendErr := p.Consumer().SendAuthResultToUDM(id, authType, false, "", udmUrl); sendErr != nil {
 			logger.Auth5gAkaLog.Infoln(sendErr.Error())
 		}
-	} else if authType == models.AuthType_EAP_AKA_PRIME {
+	} else if authType == newModels.AuthTypeEAPAKAPRIME {
 		logger.AuthELog.Infoln(errStr)
 		if sendErr := p.Consumer().SendAuthResultToUDM(id, authType, false, "", udmUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())
