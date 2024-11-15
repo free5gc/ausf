@@ -63,7 +63,9 @@ func InitAusfContext(context *AUSFContext) {
 	context.EapAkaSupiImsiPrefix = configuration.EapAkaSupiImsiPrefix
 }
 
-func AddNfServices(serviceMap *map[models.ServiceName]models.NrfNFService, config *factory.Config, context *AUSFContext) {
+func AddNfServices(serviceMap *map[models.ServiceName]models.NrfNFService, config *factory.Config,
+	context *AUSFContext,
+) {
 	var nfService models.NrfNFService
 	var ipEndPoints []models.IpEndPoint
 	var nfServiceVersions []models.NFServiceVersion

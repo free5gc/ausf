@@ -9,17 +9,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/ShouheiNishi/openapi5g/models"
 	nrf_discovery "github.com/ShouheiNishi/openapi5g/nrf/discovery"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
 	utils_error "github.com/ShouheiNishi/openapi5g/utils/error"
 	"github.com/ShouheiNishi/openapi5g/utils/problem"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
+
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/util/httpclient"
-	"github.com/google/uuid"
 )
 
 type nnrfService struct {
@@ -43,7 +43,8 @@ func (s *nnrfService) getNFManagementClient(uri string) (*nrf_management.ClientW
 		return client, nil
 	}
 
-	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), models.ServiceNameNnrfNfm, models.NFTypeNRF)
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(),
+		models.ServiceNameNnrfNfm, models.NFTypeNRF)
 	if err != nil {
 		s.nfMngmntMu.RUnlock()
 		return nil, err
@@ -77,7 +78,8 @@ func (s *nnrfService) getNFDiscClient(uri string) (*nrf_discovery.ClientWithResp
 		return client, nil
 	}
 
-	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), models.ServiceNameNnrfDisc, models.NFTypeNRF)
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(),
+		models.ServiceNameNnrfDisc, models.NFTypeNRF)
 	if err != nil {
 		s.nfDiscMu.RUnlock()
 		return nil, err
@@ -155,7 +157,8 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 	}
 
 	for {
-		res, err := client.RegisterNFInstanceWithResponse(context.TODO(), ausfContext.NfId, nil, nfProfile)
+		var res *nrf_management.RegisterNFInstanceResponse
+		res, err = client.RegisterNFInstanceWithResponse(context.TODO(), ausfContext.NfId, nil, nfProfile)
 		if err != nil || res == nil {
 			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 			time.Sleep(2 * time.Second)
@@ -195,7 +198,9 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 	return resouceNrfUri, retrieveNfInstanceID, err
 }
 
-func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (profile models.NFManagementNFProfile, err error) {
+func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
+	profile models.NFManagementNFProfile, err error,
+) {
 	profile.NfInstanceId = ausfContext.NfId
 	profile.NfType = models.NFTypeAUSF
 	profile.NfStatus = models.NFStatusREGISTERED

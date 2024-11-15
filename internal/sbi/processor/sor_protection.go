@@ -23,6 +23,8 @@ type ausfSorProtectionStrictServer struct {
 }
 
 // (POST /{supi}/ue-sor)
-func (s *ausfSorProtectionStrictServer) PostSupiUeSor(ctx context.Context, request ausf_sor_protection.PostSupiUeSorRequestObject) (ausf_sor_protection.PostSupiUeSorResponseObject, error) {
+func (s *ausfSorProtectionStrictServer) PostSupiUeSor(ctx context.Context,
+	request ausf_sor_protection.PostSupiUeSorRequestObject,
+) (ausf_sor_protection.PostSupiUeSorResponseObject, error) {
 	return nil, errors.New("not implemented")
 }

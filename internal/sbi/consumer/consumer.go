@@ -4,6 +4,7 @@ import (
 	nrf_discovery "github.com/ShouheiNishi/openapi5g/nrf/discovery"
 	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
 	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
+
 	"github.com/free5gc/ausf/pkg/app"
 )
 

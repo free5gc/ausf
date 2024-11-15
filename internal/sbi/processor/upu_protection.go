@@ -23,6 +23,8 @@ type ausfUpuProtectionStrictServer struct {
 }
 
 // (POST /{supi}/ue-upu)
-func (s *ausfUpuProtectionStrictServer) PostSupiUeUpu(ctx context.Context, request ausf_upu_protection.PostSupiUeUpuRequestObject) (ausf_upu_protection.PostSupiUeUpuResponseObject, error) {
+func (s *ausfUpuProtectionStrictServer) PostSupiUeUpu(ctx context.Context,
+	request ausf_upu_protection.PostSupiUeUpuRequestObject,
+) (ausf_upu_protection.PostSupiUeUpuResponseObject, error) {
 	return nil, errors.New("not implemented")
 }

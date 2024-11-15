@@ -10,9 +10,10 @@ import (
 	"github.com/ShouheiNishi/openapi5g/models"
 	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
 	utils_error "github.com/ShouheiNishi/openapi5g/utils/error"
+	"github.com/samber/lo"
+
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/util/httpclient"
-	"github.com/samber/lo"
 )
 
 type nudmService struct {
@@ -34,7 +35,8 @@ func (s *nudmService) getUdmUeauClient(uri string) (*udm_ueau.ClientWithResponse
 		return client, nil
 	}
 
-	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), models.ServiceNameNudmUeau, models.NFTypeUDM)
+	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(),
+		models.ServiceNameNudmUeau, models.NFTypeUDM)
 	if err != nil {
 		s.ueauMu.RUnlock()
 		return nil, err
