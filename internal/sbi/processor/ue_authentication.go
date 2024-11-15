@@ -235,7 +235,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	responseBody.ServingNetworkName = snName
 	authInfoReq.ServingNetworkName = snName
 	self := ausf_context.GetSelf()
-	authInfoReq.AusfInstanceId = self.GetSelfID()
+	authInfoReq.AusfInstanceId = self.GetSelfID().String()
 
 	var lastEapID uint8
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {

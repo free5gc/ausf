@@ -56,7 +56,7 @@ func (s *nudmService) SendAuthResultToUDM(
 		AuthType:           authType,
 		Success:            success,
 		ServingNetworkName: servingNetworkName,
-		NfInstanceId:       self.GetSelfID(),
+		NfInstanceId:       self.GetSelfID().String(),
 	}
 
 	client := s.getUdmUeauClient(udmUrl)

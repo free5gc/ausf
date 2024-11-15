@@ -2,18 +2,22 @@ package context
 
 import (
 	"context"
+	"net/http"
 	"regexp"
 	"sync"
 
+	"github.com/ShouheiNishi/openapi5g/models"
 	"github.com/free5gc/ausf/internal/logger"
-	"github.com/free5gc/openapi/models"
+	oldModels "github.com/free5gc/openapi/models"
 	"github.com/free5gc/openapi/oauth"
+	"github.com/free5gc/util/oauth2"
+	"github.com/google/uuid"
 )
 
 type AUSFContext struct {
 	suciSupiMap          sync.Map
 	UePool               sync.Map
-	NfId                 string
+	NfId                 uuid.UUID
 	GroupID              string
 	SBIPort              int
 	RegisterIPv4         string
@@ -22,8 +26,8 @@ type AUSFContext struct {
 	UriScheme            models.UriScheme
 	NrfUri               string
 	NrfCertPem           string
-	NfService            map[models.ServiceName]models.NfService
-	PlmnList             []models.PlmnId
+	NfService            map[oldModels.ServiceName]models.NrfNFService
+	PlmnList             []oldModels.PlmnId
 	UdmUeauUrl           string
 	snRegex              *regexp.Regexp
 	EapAkaSupiImsiPrefix bool
@@ -35,7 +39,7 @@ type AusfUeContext struct {
 	Kausf              string
 	Kseaf              string
 	ServingNetworkName string
-	AuthStatus         models.AuthResult
+	AuthStatus         oldModels.AuthResult
 	UdmUeauUrl         string
 
 	// for 5G AKA
@@ -105,7 +109,7 @@ func Init() {
 }
 
 type NFContext interface {
-	AuthorizationCheck(token string, serviceName models.ServiceName) error
+	AuthorizationCheck(token string, serviceName oldModels.ServiceName) error
 }
 
 var _ NFContext = &AUSFContext{}
@@ -162,21 +166,32 @@ func GetSelf() *AUSFContext {
 	return &ausfContext
 }
 
-func (a *AUSFContext) GetSelfID() string {
+func (a *AUSFContext) GetSelfID() uuid.UUID {
 	return a.NfId
 }
 
-func (c *AUSFContext) GetTokenCtx(serviceName models.ServiceName, targetNF models.NfType) (
-	context.Context, *models.ProblemDetails, error,
+func (c *AUSFContext) GetTokenCtx(serviceName oldModels.ServiceName, targetNF oldModels.NfType) (
+	context.Context, *oldModels.ProblemDetails, error,
 ) {
 	if !c.OAuth2Required {
 		return context.TODO(), nil, nil
 	}
-	return oauth.GetTokenCtx(models.NfType_AUSF, targetNF,
-		c.NfId, c.NrfUri, string(serviceName))
+	return oauth.GetTokenCtx(oldModels.NfType_AUSF, targetNF,
+		c.NfId.String(), c.NrfUri, string(serviceName))
 }
 
-func (c *AUSFContext) AuthorizationCheck(token string, serviceName models.ServiceName) error {
+func (c *AUSFContext) GetTokenRequestEditor(ctx context.Context,
+	serviceName models.ServiceName, targetNF models.NFType,
+) (func(ctx context.Context, req *http.Request) error, error) {
+	if !c.OAuth2Required {
+		return func(ctx context.Context, req *http.Request) error {
+			return nil
+		}, nil
+	}
+	return oauth2.GetOauth2RequestEditor(ctx, models.NFTypeAUSF, targetNF, c.NfId, c.NrfUri, string(serviceName))
+}
+
+func (c *AUSFContext) AuthorizationCheck(token string, serviceName oldModels.ServiceName) error {
 	if !c.OAuth2Required {
 		logger.UtilLog.Debugf("AUSFContext::AuthorizationCheck: OAuth2 not required\n")
 		return nil
