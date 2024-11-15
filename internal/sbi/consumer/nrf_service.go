@@ -18,7 +18,6 @@ import (
 	"github.com/ShouheiNishi/openapi5g/utils/problem"
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
-	"github.com/free5gc/openapi"
 	"github.com/free5gc/util/httpclient"
 	"github.com/google/uuid"
 )
@@ -46,6 +45,7 @@ func (s *nnrfService) getNFManagementClient(uri string) (*nrf_management.ClientW
 
 	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), models.ServiceNameNnrfNfm, models.NFTypeNRF)
 	if err != nil {
+		s.nfMngmntMu.RUnlock()
 		return nil, err
 	}
 
@@ -55,6 +55,7 @@ func (s *nnrfService) getNFManagementClient(uri string) (*nrf_management.ClientW
 		return nil
 	}, nrf_management.WithRequestEditorFn(editor))
 	if err != nil {
+		s.nfMngmntMu.RUnlock()
 		return nil, err
 	}
 
@@ -78,6 +79,7 @@ func (s *nnrfService) getNFDiscClient(uri string) (*nrf_discovery.ClientWithResp
 
 	editor, err := ausf_context.GetSelf().GetTokenRequestEditor(context.TODO(), models.ServiceNameNnrfDisc, models.NFTypeNRF)
 	if err != nil {
+		s.nfDiscMu.RUnlock()
 		return nil, err
 	}
 
@@ -87,6 +89,7 @@ func (s *nnrfService) getNFDiscClient(uri string) (*nrf_discovery.ClientWithResp
 		return nil
 	}, nrf_discovery.WithRequestEditorFn(editor))
 	if err != nil {
+		s.nfDiscMu.RUnlock()
 		return nil, err
 	}
 
@@ -103,8 +106,8 @@ func (s *nnrfService) SendSearchNFInstances(
 ) {
 	// Set client and set url
 	client, err := s.getNFDiscClient(nrfUri)
-	if client == nil {
-		return nil, openapi.ReportError("nrf not found")
+	if err != nil {
+		return nil, err
 	}
 	param.TargetNfType = targetNfType
 	param.RequesterNfType = requestNfType
