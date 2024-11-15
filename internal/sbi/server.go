@@ -13,6 +13,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 
+	ausf_authentication "github.com/ShouheiNishi/openapi5g/ausf/authentication"
+	ausf_sor_protection "github.com/ShouheiNishi/openapi5g/ausf/sor"
+	ausf_upu_protection "github.com/ShouheiNishi/openapi5g/ausf/upu"
+	"github.com/ShouheiNishi/openapi5g/utils/error/middleware"
+
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/internal/sbi/consumer"
@@ -61,32 +66,47 @@ func NewServer(ausf ServerAusf, tlsKeyLogPath string) (*Server, error) {
 func newRouter(s *Server) *gin.Engine {
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
 
+	router.Use(middleware.GinMiddleWare)
+	router.NoRoute(middleware.GinNotFoundHandler)
+
 	for _, serverName := range factory.AusfConfig.Configuration.ServiceNameList {
 		switch models.ServiceName(serverName) {
 		case models.ServiceNameNausfAuth:
-			ausfUeAuthenticationGroup := router.Group(factory.AusfAuthResUriPrefix)
-			ausfUeAuthenticationRoutes := s.getUeAuthenticationRoutes()
 			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceNameNausfAuth)
-			ausfUeAuthenticationGroup.Use(func(c *gin.Context) {
-				routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
-			})
-			applyRoutes(ausfUeAuthenticationGroup, ausfUeAuthenticationRoutes)
+			ausf_authentication.RegisterHandlersWithOptions(router, processor.NewServerAusfAuthentication(s.Processor()),
+				ausf_authentication.GinServerOptions{
+					BaseURL: factory.AusfAuthResUriPrefix,
+					Middlewares: []ausf_authentication.MiddlewareFunc{
+						func(c *gin.Context) {
+							routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
+						},
+					},
+					ErrorHandler: middleware.GinServerErrorHandler,
+				})
 		case models.ServiceNameNausfSorprotection:
-			ausfSorprotectionGroup := router.Group(factory.AusfSorprotectionResUriPrefix)
-			ausfSorprotectionRoutes := s.getSorprotectionRoutes()
 			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceNameNausfSorprotection)
-			ausfSorprotectionGroup.Use(func(c *gin.Context) {
-				routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
-			})
-			applyRoutes(ausfSorprotectionGroup, ausfSorprotectionRoutes)
+			ausf_sor_protection.RegisterHandlersWithOptions(router, processor.NewServerAusfSorProtection(s.Processor()),
+				ausf_sor_protection.GinServerOptions{
+					BaseURL: factory.AusfSorprotectionResUriPrefix,
+					Middlewares: []ausf_sor_protection.MiddlewareFunc{
+						func(c *gin.Context) {
+							routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
+						},
+					},
+					ErrorHandler: middleware.GinServerErrorHandler,
+				})
 		case models.ServiceNameNausfUpuprotection:
-			ausfUpuprotectionGroup := router.Group(factory.AusfUpuprotectionResUriPrefix)
-			ausfUpuprotectionRoutes := s.getUpuprotectionRoutes()
 			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceNameNausfUpuprotection)
-			ausfUpuprotectionGroup.Use(func(c *gin.Context) {
-				routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
-			})
-			applyRoutes(ausfUpuprotectionGroup, ausfUpuprotectionRoutes)
+			ausf_upu_protection.RegisterHandlersWithOptions(router, processor.NewServerAusfUpuProtection(s.Processor()),
+				ausf_upu_protection.GinServerOptions{
+					BaseURL: factory.AusfUpuprotectionResUriPrefix,
+					Middlewares: []ausf_upu_protection.MiddlewareFunc{
+						func(c *gin.Context) {
+							routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
+						},
+					},
+					ErrorHandler: middleware.GinServerErrorHandler,
+				})
 		}
 	}
 
