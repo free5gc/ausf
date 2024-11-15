@@ -3,11 +3,11 @@ package util
 import (
 	"net/http"
 
+	"github.com/ShouheiNishi/openapi5g/models"
 	"github.com/gin-gonic/gin"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
-	"github.com/free5gc/openapi/models"
 )
 
 type RouterAuthorizationCheck struct {

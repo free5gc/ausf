@@ -7,11 +7,11 @@ import (
 	"sync"
 
 	"github.com/ShouheiNishi/openapi5g/models"
+	"github.com/google/uuid"
+
 	"github.com/free5gc/ausf/internal/logger"
-	oldModels "github.com/free5gc/openapi/models"
 	"github.com/free5gc/openapi/oauth"
 	"github.com/free5gc/util/oauth2"
-	"github.com/google/uuid"
 )
 
 type AUSFContext struct {
@@ -26,8 +26,8 @@ type AUSFContext struct {
 	UriScheme            models.UriScheme
 	NrfUri               string
 	NrfCertPem           string
-	NfService            map[oldModels.ServiceName]models.NrfNFService
-	PlmnList             []oldModels.PlmnId
+	NfService            map[models.ServiceName]models.NrfNFService
+	PlmnList             []models.PlmnId
 	UdmUeauUrl           string
 	snRegex              *regexp.Regexp
 	EapAkaSupiImsiPrefix bool
@@ -109,7 +109,7 @@ func Init() {
 }
 
 type NFContext interface {
-	AuthorizationCheck(token string, serviceName oldModels.ServiceName) error
+	AuthorizationCheck(token string, serviceName models.ServiceName) error
 }
 
 var _ NFContext = &AUSFContext{}
@@ -170,16 +170,6 @@ func (a *AUSFContext) GetSelfID() uuid.UUID {
 	return a.NfId
 }
 
-func (c *AUSFContext) GetTokenCtx(serviceName oldModels.ServiceName, targetNF oldModels.NfType) (
-	context.Context, *oldModels.ProblemDetails, error,
-) {
-	if !c.OAuth2Required {
-		return context.TODO(), nil, nil
-	}
-	return oauth.GetTokenCtx(oldModels.NfType_AUSF, targetNF,
-		c.NfId.String(), c.NrfUri, string(serviceName))
-}
-
 func (c *AUSFContext) GetTokenRequestEditor(ctx context.Context,
 	serviceName models.ServiceName, targetNF models.NFType,
 ) (func(ctx context.Context, req *http.Request) error, error) {
@@ -191,7 +181,7 @@ func (c *AUSFContext) GetTokenRequestEditor(ctx context.Context,
 	return oauth2.GetOauth2RequestEditor(ctx, models.NFTypeAUSF, targetNF, c.NfId, c.NrfUri, string(serviceName))
 }
 
-func (c *AUSFContext) AuthorizationCheck(token string, serviceName oldModels.ServiceName) error {
+func (c *AUSFContext) AuthorizationCheck(token string, serviceName models.ServiceName) error {
 	if !c.OAuth2Required {
 		logger.UtilLog.Debugf("AUSFContext::AuthorizationCheck: OAuth2 not required\n")
 		return nil

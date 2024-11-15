@@ -10,7 +10,6 @@ import (
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
-	oldModels "github.com/free5gc/openapi/models"
 )
 
 func InitAusfContext(context *AUSFContext) {
@@ -57,14 +56,14 @@ func InitAusfContext(context *AUSFContext) {
 	context.PlmnList = append(context.PlmnList, configuration.PlmnSupportList...)
 
 	// context.NfService
-	context.NfService = make(map[oldModels.ServiceName]models.NrfNFService)
+	context.NfService = make(map[models.ServiceName]models.NrfNFService)
 	AddNfServices(&context.NfService, config, context)
 	fmt.Println("ausf context = ", context)
 
 	context.EapAkaSupiImsiPrefix = configuration.EapAkaSupiImsiPrefix
 }
 
-func AddNfServices(serviceMap *map[oldModels.ServiceName]models.NrfNFService, config *factory.Config, context *AUSFContext) {
+func AddNfServices(serviceMap *map[models.ServiceName]models.NrfNFService, config *factory.Config, context *AUSFContext) {
 	var nfService models.NrfNFService
 	var ipEndPoints []models.IpEndPoint
 	var nfServiceVersions []models.NFServiceVersion
@@ -89,5 +88,5 @@ func AddNfServices(serviceMap *map[oldModels.ServiceName]models.NrfNFService, co
 
 	nfService.IpEndPoints = ipEndPoints
 	nfService.Versions = nfServiceVersions
-	services[oldModels.ServiceName_NAUSF_AUTH] = nfService
+	services[models.ServiceNameNausfAuth] = nfService
 }

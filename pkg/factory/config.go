@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/ShouheiNishi/openapi5g/models"
 	"github.com/asaskevich/govalidator"
 
 	"github.com/free5gc/ausf/internal/logger"
-	"github.com/free5gc/openapi/models"
 )
 
 const (

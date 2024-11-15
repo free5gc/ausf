@@ -5,10 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ShouheiNishi/openapi5g/models"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
-
-	"github.com/free5gc/openapi/models"
 )
 
 const (
