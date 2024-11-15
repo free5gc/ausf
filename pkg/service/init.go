@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -162,8 +163,11 @@ func (a *AusfApp) Terminate() {
 func (a *AusfApp) terminateProcedure() {
 	logger.MainLog.Infof("Terminating AUSF...")
 
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
 	// deregister with NRF
-	problemDetails, err := a.Consumer().SendDeregisterNFInstance()
+	problemDetails, err := a.Consumer().SendDeregisterNFInstance(ctx)
 	if problemDetails != nil {
 		logger.MainLog.Errorf("Deregister NF instance Failed Problem[%+v]", problemDetails)
 	} else if err != nil {

@@ -2,18 +2,22 @@ package context
 
 import (
 	"context"
+	"net/http"
 	"regexp"
 	"sync"
 
+	"github.com/ShouheiNishi/openapi5g/models"
+	"github.com/google/uuid"
+
 	"github.com/free5gc/ausf/internal/logger"
-	"github.com/free5gc/openapi/models"
 	"github.com/free5gc/openapi/oauth"
+	"github.com/free5gc/util/oauth2"
 )
 
 type AUSFContext struct {
 	suciSupiMap          sync.Map
 	UePool               sync.Map
-	NfId                 string
+	NfId                 uuid.UUID
 	GroupID              string
 	SBIPort              int
 	RegisterIPv4         string
@@ -22,7 +26,7 @@ type AUSFContext struct {
 	UriScheme            models.UriScheme
 	NrfUri               string
 	NrfCertPem           string
-	NfService            map[models.ServiceName]models.NfService
+	NfService            map[models.ServiceName]models.NrfNFService
 	PlmnList             []models.PlmnId
 	UdmUeauUrl           string
 	snRegex              *regexp.Regexp
@@ -162,18 +166,19 @@ func GetSelf() *AUSFContext {
 	return &ausfContext
 }
 
-func (a *AUSFContext) GetSelfID() string {
+func (a *AUSFContext) GetSelfID() uuid.UUID {
 	return a.NfId
 }
 
-func (c *AUSFContext) GetTokenCtx(serviceName models.ServiceName, targetNF models.NfType) (
-	context.Context, *models.ProblemDetails, error,
-) {
+func (c *AUSFContext) GetTokenRequestEditor(ctx context.Context,
+	serviceName models.ServiceName, targetNF models.NFType,
+) (func(ctx context.Context, req *http.Request) error, error) {
 	if !c.OAuth2Required {
-		return context.TODO(), nil, nil
+		return func(ctx context.Context, req *http.Request) error {
+			return nil
+		}, nil
 	}
-	return oauth.GetTokenCtx(models.NfType_AUSF, targetNF,
-		c.NfId, c.NrfUri, string(serviceName))
+	return oauth2.GetOauth2RequestEditor(ctx, models.NFTypeAUSF, targetNF, c.NfId, c.NrfUri, string(serviceName))
 }
 
 func (c *AUSFContext) AuthorizationCheck(token string, serviceName models.ServiceName) error {

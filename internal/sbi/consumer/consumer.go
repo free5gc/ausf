@@ -1,10 +1,11 @@
 package consumer
 
 import (
+	nrf_discovery "github.com/ShouheiNishi/openapi5g/nrf/discovery"
+	nrf_management "github.com/ShouheiNishi/openapi5g/nrf/management"
+	udm_ueau "github.com/ShouheiNishi/openapi5g/udm/ueau"
+
 	"github.com/free5gc/ausf/pkg/app"
-	"github.com/free5gc/openapi/Nnrf_NFDiscovery"
-	"github.com/free5gc/openapi/Nnrf_NFManagement"
-	"github.com/free5gc/openapi/Nudm_UEAuthentication"
 )
 
 type ConsumerAusf interface {
@@ -25,13 +26,13 @@ func NewConsumer(ausf ConsumerAusf) (*Consumer, error) {
 
 	c.nnrfService = &nnrfService{
 		consumer:        c,
-		nfMngmntClients: make(map[string]*Nnrf_NFManagement.APIClient),
-		nfDiscClients:   make(map[string]*Nnrf_NFDiscovery.APIClient),
+		nfMngmntClients: make(map[string]*nrf_management.ClientWithResponses),
+		nfDiscClients:   make(map[string]*nrf_discovery.ClientWithResponses),
 	}
 
 	c.nudmService = &nudmService{
 		consumer:    c,
-		ueauClients: make(map[string]*Nudm_UEAuthentication.APIClient),
+		ueauClients: make(map[string]*udm_ueau.ClientWithResponses),
 	}
 
 	return c, nil
