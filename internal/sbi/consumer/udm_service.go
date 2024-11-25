@@ -117,13 +117,7 @@ func (s *nudmService) GenerateAuthDataApi(
 		}
 		return nil, err, &problemDetails
 	}
-
-	authInfoResult := models.UdmUeauAuthenticationInfoResult{
-		AuthType:             rsp.UdmUeauAuthenticationInfoResult.AuthType,
-		SupportedFeatures:    rsp.UdmUeauAuthenticationInfoResult.SupportedFeatures,
-		AuthenticationVector: rsp.UdmUeauAuthenticationInfoResult.AuthenticationVector,
-		Supi:                 rsp.UdmUeauAuthenticationInfoResult.Supi,
-	}
+	authInfoResult := rsp.UdmUeauAuthenticationInfoResult
 
 	return &authInfoResult, nil, nil
 }
