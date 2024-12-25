@@ -161,6 +161,7 @@ func (a *AusfApp) Terminate() {
 
 func (a *AusfApp) terminateProcedure() {
 	logger.MainLog.Infof("Terminating AUSF...")
+	a.CallServerStop()
 
 	// deregister with NRF
 	problemDetails, err := a.Consumer().SendDeregisterNFInstance()
@@ -171,9 +172,7 @@ func (a *AusfApp) terminateProcedure() {
 	} else {
 		logger.MainLog.Infof("Deregister from NRF successfully")
 	}
-	logger.MainLog.Infof("AUSF SBI Server terminated")
-
-	a.CallServerStop()
+	logger.MainLog.Infof("CHF SBI Server terminated")
 }
 
 func (a *AusfApp) CallServerStop() {
