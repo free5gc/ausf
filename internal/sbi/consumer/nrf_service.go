@@ -7,13 +7,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/models"
 	Nnrf_NFDiscovery "github.com/free5gc/openapi/nrf/NFDiscovery"
 	Nnrf_NFManagement "github.com/free5gc/openapi/nrf/NFManagement"
-	"github.com/pkg/errors"
 )
 
 type nnrfService struct {
@@ -183,7 +184,9 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 	return resouceNrfUri, retrieveNfInstanceID, err
 }
 
-func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (profile models.NrfNfManagementNfProfile, err error) {
+func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
+	profile models.NrfNfManagementNfProfile, err error,
+) {
 	profile.NfInstanceId = ausfContext.NfId
 	profile.NfType = models.NrfNfManagementNfType_AUSF
 	profile.NfStatus = models.NrfNfManagementNfStatus_REGISTERED

@@ -5,9 +5,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi/models"
-	"github.com/stretchr/testify/assert"
 )
 
 func createConfigFile(t *testing.T, postContent []byte) *os.File {

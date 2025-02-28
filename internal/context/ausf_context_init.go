@@ -7,10 +7,11 @@ import (
 	"net/netip"
 	"os"
 
+	"github.com/google/uuid"
+
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi/models"
-	"github.com/google/uuid"
 )
 
 func InitAusfContext(context *AUSFContext) {
@@ -39,7 +40,9 @@ func InitAusfContext(context *AUSFContext) {
 	context.BindingIP = resolveIP(sbi.BindingIP)
 	context.RegisterIP = resolveIP(sbi.RegisterIP)
 
-	context.Url = string(context.UriScheme) + "://" + netip.AddrPortFrom(context.RegisterIP, uint16(context.SBIPort)).String()
+	addr := context.RegisterIP
+	port := uint16(context.SBIPort)
+	context.Url = string(context.UriScheme) + "://" + netip.AddrPortFrom(addr, port).String()
 	context.PlmnList = append(context.PlmnList, configuration.PlmnSupportList...)
 
 	// context.NfService
