@@ -1,15 +1,16 @@
 package context
 
 import (
+	"context"
 	"fmt"
+	"net"
+	"net/netip"
 	"os"
-	"strconv"
-
-	"github.com/google/uuid"
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi/models"
+	"github.com/google/uuid"
 )
 
 func InitAusfContext(context *AUSFContext) {
@@ -23,36 +24,22 @@ func InitAusfContext(context *AUSFContext) {
 	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
 	context.NrfCertPem = configuration.NrfCertPem
-	context.UriScheme = models.UriScheme(configuration.Sbi.Scheme) // default uri scheme
-	context.RegisterIPv4 = factory.AusfSbiDefaultIPv4              // default localhost
-	context.SBIPort = factory.AusfSbiDefaultPort                   // default port
-	if sbi != nil {
-		if sbi.RegisterIPv4 != "" {
-			context.RegisterIPv4 = sbi.RegisterIPv4
-		}
-		if sbi.Port != 0 {
-			context.SBIPort = sbi.Port
-		}
 
-		if sbi.Scheme == "https" {
-			context.UriScheme = models.UriScheme_HTTPS
-		} else {
-			context.UriScheme = models.UriScheme_HTTP
-		}
+	context.SBIPort = sbi.Port
+	context.UriScheme = models.UriScheme(sbi.Scheme)
 
-		context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
-		if context.BindingIPv4 != "" {
-			logger.InitLog.Info("Parsing ServerIPv4 address from ENV Variable.")
-		} else {
-			context.BindingIPv4 = sbi.BindingIPv4
-			if context.BindingIPv4 == "" {
-				logger.InitLog.Warn("Error parsing ServerIPv4 address as string. Using the 0.0.0.0 address as default.")
-				context.BindingIPv4 = "0.0.0.0"
-			}
-		}
+	if bindingIP := os.Getenv(sbi.BindingIP); bindingIP != "" {
+		logger.UtilLog.Info("Parsing BindingIP address from ENV Variable.")
+		sbi.BindingIP = bindingIP
 	}
+	if registerIP := os.Getenv(sbi.RegisterIP); registerIP != "" {
+		logger.UtilLog.Info("Parsing RegisterIP address from ENV Variable.")
+		sbi.RegisterIP = registerIP
+	}
+	context.BindingIP = resolveIP(sbi.BindingIP)
+	context.RegisterIP = resolveIP(sbi.RegisterIP)
 
-	context.Url = string(context.UriScheme) + "://" + context.RegisterIPv4 + ":" + strconv.Itoa(context.SBIPort)
+	context.Url = string(context.UriScheme) + "://" + netip.AddrPortFrom(context.RegisterIP, uint16(context.SBIPort)).String()
 	context.PlmnList = append(context.PlmnList, configuration.PlmnSupportList...)
 
 	// context.NfService
@@ -61,6 +48,18 @@ func InitAusfContext(context *AUSFContext) {
 	fmt.Println("ausf context = ", context)
 
 	context.EapAkaSupiImsiPrefix = configuration.EapAkaSupiImsiPrefix
+}
+
+func resolveIP(ip string) netip.Addr {
+	resolvedIPs, err := net.DefaultResolver.LookupNetIP(context.Background(), "ip", ip)
+	if err != nil {
+		logger.InitLog.Errorf("Lookup failed with %s: %+v", ip, err)
+	}
+	resolvedIP := resolvedIPs[0]
+	if resolvedIP := resolvedIP.String(); resolvedIP != ip {
+		logger.UtilLog.Infof("Lookup revolved %s into %s", ip, resolvedIP)
+	}
+	return resolvedIP
 }
 
 func AddNfServices(
@@ -76,7 +75,11 @@ func AddNfServices(
 	nfService.ServiceName = models.ServiceName_NAUSF_AUTH
 
 	var ipEndPoint models.IpEndPoint
-	ipEndPoint.Ipv4Address = context.RegisterIPv4
+	if context.RegisterIP.Is6() {
+		ipEndPoint.Ipv4Address = context.RegisterIP.String()
+	} else if context.RegisterIP.Is4() {
+		ipEndPoint.Ipv6Address = context.RegisterIP.String()
+	}
 	ipEndPoint.Port = int32(context.SBIPort)
 	ipEndPoints = append(ipEndPoints, ipEndPoint)
 

@@ -9,9 +9,8 @@ import (
 	"os"
 
 	"github.com/asaskevich/govalidator"
-	"gopkg.in/yaml.v2"
-
 	"github.com/free5gc/ausf/internal/logger"
+	"gopkg.in/yaml.v2"
 )
 
 var AusfConfig *Config
@@ -22,7 +21,6 @@ func InitConfigFactory(f string, cfg *Config) error {
 		// Use default config path
 		f = AusfDefaultConfigPath
 	}
-
 	if content, err := os.ReadFile(f); err != nil {
 		return fmt.Errorf("[Factory] %+v", err)
 	} else {

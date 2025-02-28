@@ -7,14 +7,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
-
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/models"
 	Nnrf_NFDiscovery "github.com/free5gc/openapi/nrf/NFDiscovery"
 	Nnrf_NFManagement "github.com/free5gc/openapi/nrf/NFManagement"
+	"github.com/pkg/errors"
 )
 
 type nnrfService struct {
@@ -190,7 +189,11 @@ func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
 	profile.NfInstanceId = ausfContext.NfId
 	profile.NfType = models.NrfNfManagementNfType_AUSF
 	profile.NfStatus = models.NrfNfManagementNfStatus_REGISTERED
-	profile.Ipv4Addresses = append(profile.Ipv4Addresses, ausfContext.RegisterIPv4)
+	if ausfContext.RegisterIP.Is6() {
+		profile.Ipv6Addresses = append(profile.Ipv4Addresses, ausfContext.RegisterIP.String())
+	} else if ausfContext.RegisterIP.Is4() {
+		profile.Ipv4Addresses = append(profile.Ipv4Addresses, ausfContext.RegisterIP.String())
+	}
 	services := []models.NrfNfManagementNfService{}
 	for _, nfService := range ausfContext.NfService {
 		services = append(services, nfService)
