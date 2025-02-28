@@ -9,8 +9,9 @@ import (
 	"os"
 
 	"github.com/asaskevich/govalidator"
-	"github.com/free5gc/ausf/internal/logger"
 	"gopkg.in/yaml.v2"
+
+	"github.com/free5gc/ausf/internal/logger"
 )
 
 var AusfConfig *Config

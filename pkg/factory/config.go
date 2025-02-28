@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/asaskevich/govalidator"
+
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
 )
