@@ -9,18 +9,22 @@ import (
 func (s *Server) getUpuprotectionRoutes() []Route {
 	return []Route{
 		{
+			Name:    "Index",
 			Method:  http.MethodGet,
 			Pattern: "/",
-			APIFunc: Index,
+			APIFunc: func(c *gin.Context) {
+				c.String(http.StatusOK, "Hello free5GC!")
+			},
 		},
 		{
+			Name:    "SupiUeUpuPost",
 			Method:  http.MethodPost,
 			Pattern: "/:supi/ue-upu",
-			APIFunc: s.SupiUeUpuPost,
+			APIFunc: s.HTTPSupiUeUpuPost,
 		},
 	}
 }
 
-func (s *Server) SupiUeUpuPost(c *gin.Context) {
+func (s *Server) HTTPSupiUeUpuPost(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{})
 }

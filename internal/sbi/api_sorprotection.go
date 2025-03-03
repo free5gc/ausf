@@ -9,18 +9,22 @@ import (
 func (s *Server) getSorprotectionRoutes() []Route {
 	return []Route{
 		{
+			Name:    "Index",
 			Method:  http.MethodGet,
 			Pattern: "/",
-			APIFunc: Index,
+			APIFunc: func(c *gin.Context) {
+				c.String(http.StatusOK, "Hello free5GC!")
+			},
 		},
 		{
+			Name:    "SupiUeSorPost",
 			Method:  http.MethodPost,
 			Pattern: "/:supi/ue-sor",
-			APIFunc: s.SupiUeSorPost,
+			APIFunc: s.HTTPSupiUeSorPost,
 		},
 	}
 }
 
-func (s *Server) SupiUeSorPost(c *gin.Context) {
+func (s *Server) HTTPSupiUeSorPost(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{})
 }
