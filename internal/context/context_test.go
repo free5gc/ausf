@@ -102,8 +102,8 @@ func TestInitAusfContextWithConfigIPv4(t *testing.T) {
 	InitAusfContext(GetSelf())
 
 	assert.Equal(t, ausfContext.SBIPort, 8131)
-	assert.Equal(t, ausfContext.RegisterIP.String(), "::ffff:127.0.0.13")
-	assert.Equal(t, ausfContext.BindingIP.String(), "::ffff:127.0.0.13")
+	assert.Equal(t, ausfContext.RegisterIP.String(), "127.0.0.13")
+	assert.Equal(t, ausfContext.BindingIP.String(), "127.0.0.13")
 	assert.Equal(t, ausfContext.UriScheme, models.UriScheme("http"))
 
 	// Close the config file
@@ -141,8 +141,8 @@ func TestInitAusfContextWithConfigDeprecated(t *testing.T) {
 	InitAusfContext(GetSelf())
 
 	assert.Equal(t, ausfContext.SBIPort, 8003)
-	assert.Equal(t, ausfContext.RegisterIP.String(), "::ffff:127.0.0.30")
-	assert.Equal(t, ausfContext.BindingIP.String(), "::ffff:127.0.0.30")
+	assert.Equal(t, ausfContext.RegisterIP.String(), "127.0.0.30")
+	assert.Equal(t, ausfContext.BindingIP.String(), "127.0.0.30")
 	assert.Equal(t, ausfContext.UriScheme, models.UriScheme("http"))
 
 	// Close the config file
@@ -175,8 +175,8 @@ func TestInitAusfContextWithConfigEmptySBI(t *testing.T) {
 	InitAusfContext(GetSelf())
 
 	assert.Equal(t, ausfContext.SBIPort, 8000)
-	assert.Equal(t, ausfContext.RegisterIP.String(), "::ffff:127.0.0.9")
-	assert.Equal(t, ausfContext.BindingIP.String(), "::ffff:127.0.0.9")
+	assert.Equal(t, ausfContext.RegisterIP.String(), "127.0.0.9")
+	assert.Equal(t, ausfContext.BindingIP.String(), "127.0.0.9")
 	assert.Equal(t, ausfContext.UriScheme, models.UriScheme("https"))
 
 	// Close the config file
@@ -323,7 +323,7 @@ func TestResolveIPLocalhost(t *testing.T) {
 }
 
 func TestResolveIPv4(t *testing.T) {
-	expectedAddr, err := netip.ParseAddr("::ffff:127.0.0.1")
+	expectedAddr, err := netip.ParseAddr("127.0.0.1")
 	if err != nil {
 		t.Errorf("invalid expected IP: %+v", expectedAddr)
 	}
