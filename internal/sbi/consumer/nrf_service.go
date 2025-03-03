@@ -2,10 +2,10 @@ package consumer
 
 import (
 	"context"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"net/netip"
 
 	"github.com/pkg/errors"
 
@@ -236,10 +236,16 @@ func (s *nnrfService) GetUdmUrl(nrfUri string) string {
 		logger.ConsumerLog.Errorln("[Search UDM UEAU] ", err.Error(), "use defalt udmUrl", udmUrl)
 	} else if len(res.NfInstances) > 0 {
 		udmInstance := res.NfInstances[0]
-		if len(udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil {
-			ueauService := udmInstance.NfServices[0]
-			ueauEndPoint := ueauService.IpEndPoints[0]
-			udmUrl = string(ueauService.Scheme) + "://" + ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(int(ueauEndPoint.Port))
+		ueauService := udmInstance.NfServices[0]
+		ueauEndPoint := ueauService.IpEndPoints[0]
+		if len(udmInstance.Ipv6Addresses) > 0 && udmInstance.NfServices != nil {
+			addr := netip.MustParseAddr(ueauEndPoint.Ipv6Address)
+			bindAddr := netip.AddrPortFrom(addr, uint16(ueauEndPoint.Port))
+			udmUrl = string(ueauService.Scheme) + "://" + bindAddr.String()
+		} else if len(udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil {
+			addr := netip.MustParseAddr(ueauEndPoint.Ipv4Address)
+			bindAddr := netip.AddrPortFrom(addr, uint16(ueauEndPoint.Port))
+			udmUrl = string(ueauService.Scheme) + "://" + bindAddr.String()
 		}
 	} else {
 		logger.ConsumerLog.Errorln("[Search UDM UEAU] len(NfInstances) = 0")
