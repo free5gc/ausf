@@ -7,13 +7,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/models"
 	Nnrf_NFDiscovery "github.com/free5gc/openapi/nrf/NFDiscovery"
 	Nnrf_NFManagement "github.com/free5gc/openapi/nrf/NFManagement"
-	"github.com/pkg/errors"
 )
 
 type nnrfService struct {
