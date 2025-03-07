@@ -19,7 +19,7 @@ func (s *Server) getUpuprotectionRoutes() []Route {
 		{
 			Name:    "SupiUeUpuPost",
 			Method:  http.MethodPost,
-			Pattern: "/:supi/ue-upu",
+			Pattern: "/:supi/ue-upu/generate-upu-data",
 			APIFunc: s.HTTPSupiUeUpuPost,
 		},
 	}
