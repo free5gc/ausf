@@ -19,7 +19,7 @@ func (s *Server) getSorprotectionRoutes() []Route {
 		{
 			Name:    "SupiUeSorPost",
 			Method:  http.MethodPost,
-			Pattern: "/:supi/ue-sor",
+			Pattern: "/:supi/ue-sor/generate-sor-data",
 			APIFunc: s.HTTPSupiUeSorPost,
 		},
 	}

@@ -97,6 +97,12 @@ func (s *Server) getUeAuthenticationRoutes() []Route {
 			Pattern: "/ue-authentications/deregister",
 			APIFunc: s.HTTPUeAuthenticationsDeregisterPost,
 		},
+		{
+			Name:    "CreateRgAuthentications",
+			Method:  http.MethodPost,
+			Pattern: "/rg-authentications",
+			APIFunc: s.HTTPPostRgAuthentications,
+		},
 	}
 }
 
@@ -223,5 +229,9 @@ func (s *Server) HTTPRgAuthenticationsPost(c *gin.Context) {
 }
 
 func (s *Server) HTTPUeAuthenticationsDeregisterPost(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{})
+}
+
+func (s *Server) HTTPPostRgAuthentications(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{})
 }
