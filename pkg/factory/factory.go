@@ -22,7 +22,6 @@ func InitConfigFactory(f string, cfg *Config) error {
 		// Use default config path
 		f = AusfDefaultConfigPath
 	}
-
 	if content, err := os.ReadFile(f); err != nil {
 		return fmt.Errorf("[Factory] %+v", err)
 	} else {
