@@ -2,6 +2,7 @@ package context
 
 import (
 	"context"
+	"net/netip"
 	"regexp"
 	"sync"
 
@@ -16,8 +17,8 @@ type AUSFContext struct {
 	NfId                 string
 	GroupID              string
 	SBIPort              int
-	RegisterIPv4         string
-	BindingIPv4          string
+	RegisterIP           netip.Addr // IP register to NRF
+	BindingIP            netip.Addr
 	Url                  string
 	UriScheme            models.UriScheme
 	NrfUri               string

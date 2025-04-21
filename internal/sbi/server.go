@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/netip"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -45,8 +46,10 @@ func NewServer(ausf ServerAusf, tlsKeyLogPath string) (*Server, error) {
 
 	s.router = newRouter(s)
 
-	cfg := s.Config()
-	bindAddr := cfg.GetSbiBindingAddr()
+	port := ausf.Context().SBIPort
+	addr := ausf.Context().BindingIP
+	bindAddr := netip.AddrPortFrom(addr, uint16(port)).String()
+
 	logger.SBILog.Infof("Binding addr: [%s]", bindAddr)
 	var err error
 	if s.httpServer, err = httpwrapper.NewHttp2Server(bindAddr, tlsKeyLogPath, s.router); err != nil {
