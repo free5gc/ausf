@@ -22,6 +22,7 @@ import (
 	"github.com/free5gc/openapi/models"
 	"github.com/free5gc/util/httpwrapper"
 	logger_util "github.com/free5gc/util/logger"
+	"github.com/free5gc/util/metrics"
 )
 
 type ServerAusf interface {
@@ -60,6 +61,7 @@ func NewServer(ausf ServerAusf, tlsKeyLogPath string) (*Server, error) {
 
 func newRouter(s *Server) *gin.Engine {
 	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router.Use(metrics.InboundMetrics())
 
 	for _, serviceName := range factory.AusfConfig.Configuration.ServiceNameList {
 		switch models.ServiceName(serviceName) {

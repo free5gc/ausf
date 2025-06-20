@@ -19,6 +19,7 @@ import (
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/util/metrics/sbi"
 )
 
 // Index is the index handler.
@@ -118,6 +119,7 @@ func (s *Server) HTTPEapAuthMethod(c *gin.Context) {
 			Cause:  "SYSTEM_FAILURE",
 		}
 		logger.Auth5gAkaLog.Errorf("Get Request Body error: %+v", err)
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetail.Cause)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -131,6 +133,7 @@ func (s *Server) HTTPEapAuthMethod(c *gin.Context) {
 			Detail: problemDetail,
 		}
 		logger.Auth5gAkaLog.Errorln(problemDetail)
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -151,6 +154,7 @@ func (s *Server) HTTPUeAuthenticationsPost(c *gin.Context) {
 			Cause:  "SYSTEM_FAILURE",
 		}
 		logger.UeAuthLog.Errorf("Get Request Body error: %+v", err)
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetail.Cause)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -164,6 +168,7 @@ func (s *Server) HTTPUeAuthenticationsPost(c *gin.Context) {
 			Detail: problemDetail,
 		}
 		logger.UeAuthLog.Errorln(problemDetail)
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
@@ -183,6 +188,7 @@ func (s *Server) HTTPUeAuthenticationsAuthCtxId5gAkaConfirmationPut(c *gin.Conte
 			Cause:  "SYSTEM_FAILURE",
 		}
 		logger.Auth5gAkaLog.Errorf("Get Request Body error: %+v", err)
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetail)
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
@@ -196,6 +202,7 @@ func (s *Server) HTTPUeAuthenticationsAuthCtxId5gAkaConfirmationPut(c *gin.Conte
 			Detail: problemDetail,
 		}
 		logger.Auth5gAkaLog.Errorln(problemDetail)
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
 	}
