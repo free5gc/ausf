@@ -1,6 +1,7 @@
 package consumer
 
 import (
+	sbi_metrics "github.com/free5gc/util/metrics/sbi"
 	"sync"
 	"time"
 
@@ -31,6 +32,7 @@ func (s *nudmService) getUdmUeauClient(uri string) *Nudm_UEAU.APIClient {
 
 	configuration := Nudm_UEAU.NewConfiguration()
 	configuration.SetBasePath(uri)
+	configuration.SetMetrics(sbi_metrics.SbiMetricHook)
 	client = Nudm_UEAU.NewAPIClient(configuration)
 
 	s.ueauMu.RUnlock()

@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"github.com/free5gc/util/metrics"
+	"github.com/free5gc/util/metrics/utils"
+	"github.com/prometheus/client_golang/prometheus"
 	"io"
 	"os"
 	"runtime/debug"
@@ -30,9 +33,10 @@ type AusfApp struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	sbiServer *sbi.Server
-	consumer  *consumer.Consumer
-	processor *processor.Processor
+	sbiServer     *sbi.Server
+	metricsServer *metrics.Server
+	consumer      *consumer.Consumer
+	processor     *processor.Processor
 }
 
 func NewApp(ctx context.Context, cfg *factory.Config, tlsKeyLogPath string) (*AusfApp, error) {
@@ -63,9 +67,33 @@ func NewApp(ctx context.Context, cfg *factory.Config, tlsKeyLogPath string) (*Au
 	if ausf.sbiServer, err = sbi.NewServer(ausf, tlsKeyLogPath); err != nil {
 		return nil, err
 	}
+
+	features := map[utils.MetricTypeEnabled]bool{utils.SBI: true}
+	customMetrics := make(map[utils.MetricTypeEnabled][]prometheus.Collector)
+	if cfg.AreMetricsEnabled() {
+		if ausf.metricsServer, err = metrics.NewServer(getInitMetrics(cfg, features, customMetrics), tlsKeyLogPath, logger.InitLog); err != nil {
+			return nil, err
+		}
+	}
+
 	AUSF = ausf
 
 	return ausf, nil
+}
+
+func getInitMetrics(cfg *factory.Config, features map[utils.MetricTypeEnabled]bool, customMetrics map[utils.MetricTypeEnabled][]prometheus.Collector) metrics.InitMetrics {
+	metricsInfo := metrics.Metrics{
+		BindingIPv4: cfg.GetMetricsBindingAddr(),
+		Scheme:      cfg.GetMetricsScheme(),
+		Namespace:   cfg.GetMetricsNamespace(),
+		Port:        cfg.GetMetricsPort(),
+		Tls: metrics.Tls{
+			Key: cfg.GetMetricsCertKeyPath(),
+			Pem: cfg.GetMetricsCertPemPath(),
+		},
+	}
+
+	return metrics.NewInitMetrics(metricsInfo, "ausf", features, customMetrics)
 }
 
 func (a *AusfApp) CancelContext() context.Context {
@@ -139,6 +167,12 @@ func (a *AusfApp) Start() {
 	if err := a.sbiServer.Run(context.Background(), &a.wg); err != nil {
 		logger.MainLog.Fatalf("Run SBI server failed: %+v", err)
 	}
+
+	if a.cfg.AreMetricsEnabled() && a.metricsServer != nil {
+		go func() {
+			a.metricsServer.Run(&a.wg)
+		}()
+	}
 	a.WaitRoutineStopped()
 }
 
@@ -178,6 +212,10 @@ func (a *AusfApp) terminateProcedure() {
 func (a *AusfApp) CallServerStop() {
 	if a.sbiServer != nil {
 		a.sbiServer.Shutdown()
+	}
+	if a.metricsServer != nil {
+		a.metricsServer.Stop()
+		logger.MainLog.Infof("AUSF Metrics Server terminated")
 	}
 }
 

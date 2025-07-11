@@ -25,6 +25,10 @@ const (
 	AusfSbiDefaultIPv4            = "127.0.0.9"
 	AusfSbiDefaultPort            = 8000
 	AusfSbiDefaultScheme          = "https"
+	AusfMetricsDefaultEnabled     = false
+	AusfMetricsDefaultPort        = 9091
+	AusfMetricsDefaultScheme      = "https"
+	AusfMetricsDefaultNamespace   = "free5gc"
 	AusfDefaultNrfUri             = "https://127.0.0.10:8000"
 	AusfSorprotectionResUriPrefix = "/nausf-sorprotection/v1"
 	AusfAuthResUriPrefix          = "/nausf-auth/v1"
@@ -39,6 +43,10 @@ type Config struct {
 }
 
 func (c *Config) Validate() (bool, error) {
+	govalidator.TagMap["scheme"] = func(str string) bool {
+		return str == "https" || str == "http"
+	}
+
 	if configuration := c.Configuration; configuration != nil {
 		if result, err := configuration.validate(); err != nil {
 			return result, err
@@ -56,6 +64,7 @@ type Info struct {
 
 type Configuration struct {
 	Sbi                  *Sbi            `yaml:"sbi,omitempty" valid:"required"`
+	Metrics              *Metrics        `yaml:"metrics,omitempty" valid:"optional"`
 	ServiceNameList      []string        `yaml:"serviceNameList,omitempty" valid:"required"`
 	NrfUri               string          `yaml:"nrfUri,omitempty" valid:"url,required"`
 	NrfCertPem           string          `yaml:"nrfCertPem,omitempty" valid:"optional"`
@@ -114,10 +123,6 @@ type Sbi struct {
 }
 
 func (s *Sbi) validate() (bool, error) {
-	govalidator.TagMap["scheme"] = govalidator.Validator(func(str string) bool {
-		return str == "https" || str == "http"
-	})
-
 	if tls := s.Tls; tls != nil {
 		if result, err := tls.validate(); err != nil {
 			return result, err
@@ -136,6 +141,36 @@ type Tls struct {
 func (t *Tls) validate() (bool, error) {
 	result, err := govalidator.ValidateStruct(t)
 	return result, err
+}
+
+type Metrics struct {
+	Enable      bool   `yaml:"enable" valid:"optional"`
+	Scheme      string `yaml:"scheme" valid:"required,scheme"`
+	BindingIPv4 string `yaml:"bindingIPv4,omitempty" valid:"required,host"` // IP used to run the server in the node.
+	Port        int    `yaml:"port,omitempty" valid:"optional,port"`
+	Tls         *Tls   `yaml:"tls,omitempty" valid:"optional"`
+	Namespace   string `yaml:"namespace" valid:"optional"`
+}
+
+// This function is the mirror of the SBI one, I decided not to factor the code as it could in the future diverge.
+// And it will reduce the cognitive overload when reading the function by not hiding the logic elsewhere.
+func (m *Metrics) validate() (bool, error) {
+	var errs govalidator.Errors
+
+	if tls := m.Tls; tls != nil {
+		if _, err := tls.validate(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if _, err := govalidator.ValidateStruct(m); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return false, error(errs)
+	}
+	return true, nil
 }
 
 func appendInvalid(err error) error {
@@ -288,4 +323,86 @@ func (c *Config) GetCertKeyPath() string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.Configuration.Sbi.Tls.Key
+}
+
+func (c *Config) AreMetricsEnabled() bool {
+	c.RLock()
+	defer c.RUnlock()
+	if c.Configuration != nil && c.Configuration.Metrics != nil {
+		return c.Configuration.Metrics.Enable
+	}
+	return AusfMetricsDefaultEnabled
+}
+
+func (c *Config) GetMetricsScheme() string {
+	c.RLock()
+	defer c.RUnlock()
+	if c.Configuration != nil && c.Configuration.Metrics != nil && c.Configuration.Metrics.Scheme != "" {
+		return c.Configuration.Metrics.Scheme
+	}
+	return AusfMetricsDefaultScheme
+}
+
+func (c *Config) GetMetricsPort() int {
+	c.RLock()
+	defer c.RUnlock()
+	if c.Configuration != nil && c.Configuration.Metrics != nil && c.Configuration.Metrics.Port != 0 {
+		return c.Configuration.Metrics.Port
+	}
+	return AusfMetricsDefaultPort
+}
+
+func (c *Config) GetMetricsBindingIP() string {
+	c.RLock()
+	defer c.RUnlock()
+	bindIP := "0.0.0.0"
+
+	if c.Configuration == nil || c.Configuration.Metrics == nil {
+		return bindIP
+	}
+
+	if c.Configuration.Metrics.BindingIPv4 != "" {
+		if bindIP = os.Getenv(c.Configuration.Metrics.BindingIPv4); bindIP != "" {
+			logger.CfgLog.Infof("Parsing ServerIPv4 [%s] from ENV Variable", bindIP)
+		} else {
+			bindIP = c.Configuration.Metrics.BindingIPv4
+		}
+	}
+	return bindIP
+}
+
+func (c *Config) GetMetricsBindingAddr() string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.GetMetricsBindingIP() + ":" + strconv.Itoa(c.GetMetricsPort())
+}
+
+func (c *Config) GetMetricsCertPemPath() string {
+	// We can see if there is a benefit to factor this tls key/pem with the sbi ones
+	c.RLock()
+	defer c.RUnlock()
+
+	if c.Configuration.Metrics != nil && c.Configuration.Metrics.Tls != nil {
+		return c.Configuration.Metrics.Tls.Pem
+	}
+	return ""
+}
+
+func (c *Config) GetMetricsCertKeyPath() string {
+	c.RLock()
+	defer c.RUnlock()
+
+	if c.Configuration.Metrics != nil && c.Configuration.Metrics.Tls != nil {
+		return c.Configuration.Metrics.Tls.Key
+	}
+	return ""
+}
+
+func (c *Config) GetMetricsNamespace() string {
+	c.RLock()
+	defer c.RUnlock()
+	if c.Configuration.Metrics != nil && c.Configuration.Metrics.Namespace != "" {
+		return c.Configuration.Metrics.Namespace
+	}
+	return AusfMetricsDefaultNamespace
 }
