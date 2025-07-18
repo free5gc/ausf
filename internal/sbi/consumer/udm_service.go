@@ -83,12 +83,12 @@ func (s *nudmService) GenerateAuthDataApi(
 	udmUrl string,
 	supiOrSuci string,
 	authInfoReq models.AuthenticationInfoRequest,
-) (*models.UdmUeauAuthenticationInfoResult, error, *models.ProblemDetails) {
+) (*models.UdmUeauAuthenticationInfoResult, *models.ProblemDetails, error) {
 	client := s.getUdmUeauClient(udmUrl)
 
 	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NUDM_UEAU, models.NrfNfManagementNfType_UDM)
 	if err != nil {
-		return nil, err, pd
+		return nil, pd, err
 	}
 
 	udmAuthInfoReq := models.UdmUeauAuthenticationInfoRequest{
@@ -115,7 +115,7 @@ func (s *nudmService) GenerateAuthDataApi(
 		} else {
 			problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
 		}
-		return nil, err, &problemDetails
+		return nil, &problemDetails, err
 	}
 	authInfoResult := rsp.UdmUeauAuthenticationInfoResult
 
