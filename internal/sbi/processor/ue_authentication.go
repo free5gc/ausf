@@ -24,6 +24,7 @@ import (
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/util/metrics/sbi"
 	"github.com/free5gc/util/ueauth"
 )
 
@@ -46,6 +47,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 			Status: http.StatusNotFound,
 			Cause:  "USER_NOT_FOUND",
 		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 		c.JSON(int(problemDetails.Status), problemDetails)
 		return
 	}
@@ -57,6 +59,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 			Status: http.StatusNotFound,
 			Cause:  "USER_NOT_FOUND",
 		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 		c.JSON(int(problemDetails.Status), problemDetails)
 		return
 	}
@@ -69,6 +72,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, 0)
 		eapSession.EapPayload = eapFailPkt
 		eapSession.AuthResult = models.AusfUeAuthenticationAuthResult_FAILURE
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, eapSession.AuthResult)
 		c.JSON(http.StatusUnauthorized, eapSession)
 		return
 	}
@@ -132,6 +136,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 					problemDetails := models.ProblemDetails{
 						Cause: "UPSTREAM_SERVER_ERROR",
 					}
+					c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 					c.JSON(http.StatusInternalServerError, problemDetails)
 					return
 				}
@@ -178,6 +183,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 				Status: http.StatusInternalServerError,
 				Cause:  "UPSTREAM_SERVER_ERROR",
 			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 			c.JSON(http.StatusInternalServerError, problemDetails)
 			return
 		}
@@ -198,6 +204,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 			var problemDetails models.ProblemDetails
 			problemDetails.Status = http.StatusInternalServerError
 			problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 			c.JSON(http.StatusInternalServerError, problemDetails)
 			return
 		}
@@ -229,6 +236,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 			Status: http.StatusForbidden,
 		}
 		logger.UeAuthLog.Infoln("403 forbidden: serving network NOT AUTHORIZED")
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 		c.JSON(http.StatusForbidden, problemDetails)
 		return
 	}
@@ -259,6 +267,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	result, pd, err := p.Consumer().GenerateAuthDataApi(udmUrl, supiOrSuci, authInfoReq)
 	if err != nil {
 		logger.UeAuthLog.Infof("GenerateAuthDataApi error: %+v", err)
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, pd.Cause)
 		c.JSON(http.StatusInternalServerError, pd)
 		return
 	}
@@ -292,6 +301,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 				Detail: err.Error(),
 				Status: http.StatusInternalServerError,
 			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 			c.JSON(http.StatusInternalServerError, problemDetails)
 			return
 		} else {
@@ -312,6 +322,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 				Detail: err.Error(),
 				Status: http.StatusInternalServerError,
 			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 			c.JSON(http.StatusInternalServerError, problemDetails)
 			return
 		} else {
@@ -327,6 +338,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 				Detail: err.Error(),
 				Status: http.StatusInternalServerError,
 			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 			c.JSON(http.StatusInternalServerError, problemDetails)
 			return
 		}
@@ -470,6 +482,7 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(c *gin.Context, updateConfi
 			Cause:  "USER_NOT_FOUND",
 			Status: http.StatusBadRequest,
 		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 		c.JSON(http.StatusBadRequest, problemDetails)
 		return
 	}
@@ -481,6 +494,7 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(c *gin.Context, updateConfi
 			Cause:  "USER_NOT_FOUND",
 			Status: http.StatusBadRequest,
 		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 		c.JSON(http.StatusBadRequest, problemDetails)
 		return
 	}
@@ -511,6 +525,7 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(c *gin.Context, updateConfi
 			Status: http.StatusInternalServerError,
 			Cause:  "UPSTREAM_SERVER_ERROR",
 		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
 		c.JSON(http.StatusInternalServerError, problemDetails)
 		return
 	}
