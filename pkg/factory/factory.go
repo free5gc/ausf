@@ -46,7 +46,7 @@ func ReadConfig(cfgPath string) (*Config, error) {
 			logger.CfgLog.Errorf("%+v", validErr)
 		}
 		logger.CfgLog.Errorf("[-- PLEASE REFER TO SAMPLE CONFIG FILE COMMENTS --]")
-		return nil, fmt.Errorf("Config validate Error")
+		return nil, fmt.Errorf("config validate Error")
 	}
 
 	return cfg, nil

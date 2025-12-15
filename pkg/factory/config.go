@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/asaskevich/govalidator"
+	"github.com/google/uuid"
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
@@ -22,6 +23,7 @@ const (
 	AusfDefaultCertPemPath        = "./cert/ausf.pem"
 	AusfDefaultPrivateKeyPath     = "./cert/ausf.key"
 	AusfDefaultConfigPath         = "./config/ausfcfg.yaml"
+	AusfDefaultNfInstanceIdEnvVar = "AUSF_NF_INSTANCE_ID"
 	AusfSbiDefaultIPv4            = "127.0.0.9"
 	AusfSbiDefaultPort            = 8000
 	AusfSbiDefaultScheme          = "https"
@@ -63,6 +65,7 @@ type Info struct {
 }
 
 type Configuration struct {
+	NfInstanceId         string          `yaml:"nfInstanceId,omitempty" valid:"optional,uuidv4"`
 	Sbi                  *Sbi            `yaml:"sbi,omitempty" valid:"required"`
 	Metrics              *Metrics        `yaml:"metrics,omitempty" valid:"optional"`
 	ServiceNameList      []string        `yaml:"serviceNameList,omitempty" valid:"required"`
@@ -80,6 +83,10 @@ type Logger struct {
 }
 
 func (c *Configuration) validate() (bool, error) {
+	if c.NfInstanceId == "" {
+		c.NfInstanceId = uuid.New().String()
+	}
+
 	if sbi := c.Sbi; sbi != nil {
 		if result, err := sbi.validate(); err != nil {
 			return result, err
@@ -126,6 +133,31 @@ func (c *Configuration) validate() (bool, error) {
 
 	result, err := govalidator.ValidateStruct(c)
 	return result, appendInvalid(err)
+}
+
+func (c *Config) GetNfInstanceId() string {
+	c.RLock()
+	defer c.RUnlock()
+
+	var nfInstanceId string
+
+	logger.CfgLog.Debugf("Fetching nfInstanceId from env var \"%s\"", AusfDefaultNfInstanceIdEnvVar)
+
+	if nfInstanceId = os.Getenv(AusfDefaultNfInstanceIdEnvVar); nfInstanceId == "" {
+		logger.CfgLog.Debugf("No value found for \"%s\" env, fallback on config nfInstanceId : %s",
+			AusfDefaultNfInstanceIdEnvVar, c.Configuration.NfInstanceId)
+		return c.Configuration.NfInstanceId
+	}
+
+	if err := uuid.Validate(nfInstanceId); err != nil {
+		logger.CfgLog.Errorf("Env var \"%s\" is not a valid uuid, "+
+			"fallback on configuration nfInstanceId : %s", AusfDefaultNfInstanceIdEnvVar, c.Configuration.NfInstanceId)
+		return c.Configuration.NfInstanceId
+	}
+
+	logger.CfgLog.Debugf("nfInstanceId from %s : %s", AusfDefaultNfInstanceIdEnvVar, nfInstanceId)
+
+	return nfInstanceId
 }
 
 type Sbi struct {
