@@ -5,8 +5,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/google/uuid"
-
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi/models"
@@ -19,7 +17,7 @@ func InitAusfContext(context *AUSFContext) {
 	configuration := config.Configuration
 	sbi := configuration.Sbi
 
-	context.NfId = uuid.New().String()
+	context.NfId = config.GetNfInstanceId()
 	context.GroupID = configuration.GroupId
 	context.NrfUri = configuration.NrfUri
 	context.NrfCertPem = configuration.NrfCertPem
