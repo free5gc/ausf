@@ -127,7 +127,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 				eapSession.EapPayload = eapSuccPkt
 				udmUrl := ausfCurrentContext.UdmUeauUrl
 				if sendErr := p.Consumer().SendAuthResultToUDM(
-					eapSessionID,
+					currentSupi,
 					models.UdmUeauAuthType_EAP_AKA_PRIME,
 					true,
 					servingNetworkName,
