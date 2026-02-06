@@ -127,7 +127,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 				eapSession.EapPayload = eapSuccPkt
 				udmUrl := ausfCurrentContext.UdmUeauUrl
 				if sendErr := p.Consumer().SendAuthResultToUDM(
-					eapSessionID,
+					currentSupi,
 					models.UdmUeauAuthType_EAP_AKA_PRIME,
 					true,
 					servingNetworkName,
@@ -176,7 +176,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 
 	if !eapOK {
 		logger.AuthELog.Warnf("EAP-AKA' failure: %s", eapErrStr)
-		if sendErr := p.Consumer().SendAuthResultToUDM(eapSessionID, models.UdmUeauAuthType_EAP_AKA_PRIME,
+		if sendErr := p.Consumer().SendAuthResultToUDM(currentSupi, models.UdmUeauAuthType_EAP_AKA_PRIME,
 			false, servingNetworkName, ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())
 			problemDetails := models.ProblemDetails{
@@ -198,7 +198,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 		eapSession.Links = make(map[string][]models.Link)
 		eapSession.Links["eap-session"] = []models.Link{linksValue}
 	} else if ausfCurrentContext.AuthStatus == models.AusfUeAuthenticationAuthResult_FAILURE {
-		if sendErr := p.Consumer().SendAuthResultToUDM(eapSessionID, models.UdmUeauAuthType_EAP_AKA_PRIME, false,
+		if sendErr := p.Consumer().SendAuthResultToUDM(currentSupi, models.UdmUeauAuthType_EAP_AKA_PRIME, false,
 			servingNetworkName, ausfCurrentContext.UdmUeauUrl); sendErr != nil {
 			logger.AuthELog.Infoln(sendErr.Error())
 			var problemDetails models.ProblemDetails
