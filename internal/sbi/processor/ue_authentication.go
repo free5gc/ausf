@@ -23,7 +23,9 @@ import (
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
+	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/models"
+	Nudm_UEAuthentication "github.com/free5gc/openapi/udm/UEAuthentication"
 	"github.com/free5gc/util/metrics/sbi"
 	"github.com/free5gc/util/ueauth"
 )
@@ -274,13 +276,22 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 
 	udmUrl := p.Consumer().GetUdmUrl(self.NrfUri)
 
-	result, pd, err := p.Consumer().GenerateAuthDataApi(udmUrl, supiOrSuci, authInfoReq)
+	result, err := p.Consumer().GenerateAuthDataApi(udmUrl, supiOrSuci, authInfoReq)
 	if err != nil {
-		logger.UeAuthLog.Infof("GenerateAuthDataApi error: %+v", err)
-		c.Set(sbi.IN_PB_DETAILS_CTX_STR, pd.Cause)
-		c.JSON(http.StatusInternalServerError, pd)
+		if apiErr, ok := err.(openapi.GenericOpenAPIError); ok {
+			if genAuthDataErr, ok2 := apiErr.Model().(Nudm_UEAuthentication.GenerateAuthDataError); ok2 {
+				problem := genAuthDataErr.ProblemDetails
+				c.Set(sbi.IN_PB_DETAILS_CTX_STR, problem.Cause)
+				c.JSON(int(problem.Status), problem)
+				return
+			}
+		}
+		problemDetails := openapi.ProblemDetailsSystemFailure(err.Error())
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(int(problemDetails.Status), problemDetails)
 		return
 	}
+
 	authInfoResult := *result
 
 	ueid := authInfoResult.Supi
