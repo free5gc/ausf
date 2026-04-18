@@ -92,7 +92,10 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 	eapOK := true
 	var eapErrStr string
 
-	if eapContent.Code != layers.EAPCodeResponse {
+	if eapContent == nil {
+		eapOK = false
+		eapErrStr = "failed to parse EAP packet"
+	} else if eapContent.Code != layers.EAPCodeResponse {
 		eapOK = false
 		eapErrStr = "eap packet code error"
 	} else if eapContent.Type != ausf_context.EAP_AKA_PRIME_TYPENUM {
