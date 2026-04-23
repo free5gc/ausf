@@ -88,7 +88,18 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 
 	eapGoPkt := gopacket.NewPacket(eapPayload, layers.LayerTypeEAP, gopacket.Default)
 	eapLayer := eapGoPkt.Layer(layers.LayerTypeEAP)
-	eapContent, _ := eapLayer.(*layers.EAP)
+	eapContent, ok := eapLayer.(*layers.EAP)
+	if !ok || eapContent == nil {
+		logger.AuthELog.Infoln("EAP Payload is malformed, confirmation failed")
+		problemDetails := models.ProblemDetails{
+			Status: http.StatusBadRequest,
+			Detail: "EAP Payload is malformed",
+			Cause:  "INVALID_EAP_PAYLOAD",
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(int(problemDetails.Status), problemDetails)
+		return
+	}
 	eapOK := true
 	var eapErrStr string
 
