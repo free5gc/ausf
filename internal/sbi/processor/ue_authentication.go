@@ -713,11 +713,7 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 	var attrLen int
 	var decodeAttr ausf_context.EapAkaPrimeAttribute
 	attributes := make(map[uint8]ausf_context.EapAkaPrimeAttribute)
-	// A well-formed EAP-AKA' packet has at least a 5-byte EAP header plus
-	// a 1-byte Subtype plus 2 reserved bytes (RFC 5448 §3) before the
-	// attribute TLVs begin at offset 3. A crafted NAS AuthenticationResponse
-	// carrying a 5-byte EAP payload (type field only) made eapPkt[5:] an
-	// empty slice and data[0] panicked (free5gc/free5gc#982).
+	// Bounds-check the EAP header before slicing.
 	if len(eapPkt) < 6 {
 		return nil, fmt.Errorf("EAP-AKA' packet too short: got %d bytes, need at least 6", len(eapPkt))
 	}
@@ -727,9 +723,7 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 
 	// decode attributes
 	for i := 3; i < dataLen; i += attrLen {
-		// Each attribute is a 2-byte header (type, length/4) followed by
-		// value bytes. Reject truncated headers instead of letting
-		// data[i+1] run off the end (free5gc/free5gc#983).
+		// Bounds-check the 2-byte attribute header.
 		if i+1 >= dataLen {
 			return nil, fmt.Errorf("EAP-AKA' attribute header truncated at offset %d", i)
 		}
