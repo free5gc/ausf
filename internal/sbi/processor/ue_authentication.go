@@ -724,12 +724,18 @@ func decodeEapAkaPrime(eapPkt []byte) (*ausf_context.EapAkaPrimePkt, error) {
 	var attrLen int
 	var decodeAttr ausf_context.EapAkaPrimeAttribute
 	attributes := make(map[uint8]ausf_context.EapAkaPrimeAttribute)
+	if len(eapPkt) < 6 {
+		return nil, fmt.Errorf("EAP-AKA' packet too short: %d bytes", len(eapPkt))
+	}
 	data := eapPkt[5:]
 	decodePkt.Subtype = data[0]
 	dataLen := len(data)
 
 	// decode attributes
 	for i := 3; i < dataLen; i += attrLen {
+		if i+1 >= dataLen {
+			return nil, fmt.Errorf("EAP-AKA' attribute header truncated at offset %d", i)
+		}
 		attrType := data[i]
 		attrLen = int(data[i+1]) * 4
 		if attrLen == 0 {
