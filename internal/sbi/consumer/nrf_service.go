@@ -2,7 +2,6 @@ package consumer
 
 import (
 	"context"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -216,8 +215,7 @@ func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
 	return
 }
 
-func (s *nnrfService) GetUdmUrl(nrfUri string) string {
-	udmUrl := "https://localhost:29503" // default
+func (s *nnrfService) GetUdmUrl(nrfUri string) (string, error) {
 	targetNfType := models.NrfNfManagementNfType_UDM
 	requestNfType := models.NrfNfManagementNfType_AUSF
 	nfDiscoverParam := Nnrf_NFDiscovery.SearchNFInstancesRequest{
@@ -232,16 +230,14 @@ func (s *nnrfService) GetUdmUrl(nrfUri string) string {
 		nfDiscoverParam,
 	)
 	if err != nil {
-		logger.ConsumerLog.Errorln("[Search UDM UEAU] ", err.Error(), "use defalt udmUrl", udmUrl)
-	} else if len(res.NfInstances) > 0 {
-		udmInstance := res.NfInstances[0]
-		if len(udmInstance.Ipv4Addresses) > 0 && udmInstance.NfServices != nil {
-			ueauService := udmInstance.NfServices[0]
-			ueauEndPoint := ueauService.IpEndPoints[0]
-			udmUrl = string(ueauService.Scheme) + "://" + ueauEndPoint.Ipv4Address + ":" + strconv.Itoa(int(ueauEndPoint.Port))
-		}
-	} else {
-		logger.ConsumerLog.Errorln("[Search UDM UEAU] len(NfInstances) = 0")
+		logger.ConsumerLog.Errorln("[Search UDM UEAU] ", err.Error())
+		return "", err
 	}
-	return udmUrl
+
+	_, udmUrl, err := openapi.GetServiceNfProfileAndUri(res.NfInstances, models.ServiceName_NUDM_UEAU)
+	if err != nil {
+		logger.ConsumerLog.Errorln("[Search UDM UEAU] ", err.Error())
+		return "", err
+	}
+	return udmUrl, nil
 }

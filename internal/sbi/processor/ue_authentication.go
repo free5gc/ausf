@@ -288,7 +288,19 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 		lastEapID = ausfCurrentContext.EapID
 	}
 
-	udmUrl := p.Consumer().GetUdmUrl(self.NrfUri)
+	udmUrl, err := p.Consumer().GetUdmUrl(self.NrfUri)
+	if err != nil {
+		logger.UeAuthLog.Errorf("UDM discovery failed: %+v", err)
+		problemDetails := models.ProblemDetails{
+			Title:  "UDM Discovery Failed",
+			Cause:  "UDM_DISCOVERY_FAILED",
+			Detail: err.Error(),
+			Status: http.StatusServiceUnavailable,
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusServiceUnavailable, problemDetails)
+		return
+	}
 
 	result, err := p.Consumer().GenerateAuthDataApi(udmUrl, supiOrSuci, authInfoReq)
 	if err != nil {
