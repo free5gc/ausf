@@ -230,13 +230,11 @@ func (s *nnrfService) GetUdmUrl(nrfUri string) (string, error) {
 		nfDiscoverParam,
 	)
 	if err != nil {
-		logger.ConsumerLog.Errorln("[Search UDM UEAU] ", err.Error())
 		return "", err
 	}
 
 	_, udmUrl, err := openapi.GetServiceNfProfileAndUri(res.NfInstances, models.ServiceName_NUDM_UEAU)
 	if err != nil {
-		logger.ConsumerLog.Errorln("[Search UDM UEAU] ", err.Error())
 		return "", err
 	}
 	return udmUrl, nil
