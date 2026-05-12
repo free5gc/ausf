@@ -28,6 +28,7 @@ import (
 	Nudm_UEAuthentication "github.com/free5gc/openapi/udm/UEAuthentication"
 	"github.com/free5gc/util/metrics/sbi"
 	"github.com/free5gc/util/ueauth"
+	"github.com/free5gc/util/validator"
 )
 
 func (p *Processor) HandleEapAuthComfirmRequest(c *gin.Context, eapSession models.EapSession, eapSessionId string) {
@@ -309,6 +310,28 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	authInfoResult := *result
 
 	ueid := authInfoResult.Supi
+	var eapAkaPrimeIdentity string
+	if authInfoResult.AuthType == models.UdmUeauAuthType_EAP_AKA_PRIME {
+		if !validator.IsValidSupi(ueid) {
+			err := fmt.Errorf("malformed SUPI %q", ueid)
+			logger.UeAuthLog.Warnf("invalid SUPI in UDM EAP-AKA' response: %+v", err)
+			problemDetails := models.ProblemDetails{
+				Title:  "Malformed UDM SUPI",
+				Cause:  "MALFORMED_UDM_SUPI",
+				Detail: err.Error(),
+				Status: http.StatusInternalServerError,
+			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+			c.JSON(http.StatusInternalServerError, problemDetails)
+			return
+		}
+		eapAkaPrimeIdentity = ueid
+		if !self.EapAkaSupiImsiPrefix {
+			// TS 33.501 v15.9.0 or later uses the IMSI digits without the "imsi-" prefix.
+			eapAkaPrimeIdentity = strings.TrimPrefix(ueid, "imsi-")
+		}
+	}
+
 	ausfUeContext := ausf_context.NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
 	ausfUeContext.AuthStatus = models.AusfUeAuthenticationAuthResult_ONGOING
@@ -395,17 +418,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 		logger.UeAuthLog.Infoln("Use EAP-AKA' auth method")
 		putLink += "/eap-session"
 
-		var identity string
-		// TODO support more SUPI type
-		if ueid[:4] == "imsi" {
-			if !self.EapAkaSupiImsiPrefix {
-				// 33.501 v15.9.0 or later
-				identity = ueid[5:]
-			} else {
-				// 33.501 v15.8.0 or earlier
-				identity = ueid
-			}
-		}
+		identity := eapAkaPrimeIdentity
 		ikPrime := authInfoResult.AuthenticationVector.IkPrime
 		ckPrime := authInfoResult.AuthenticationVector.CkPrime
 		RAND := authInfoResult.AuthenticationVector.Rand
