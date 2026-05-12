@@ -319,10 +319,10 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 				Title:  "Malformed UDM SUPI",
 				Cause:  "MALFORMED_UDM_SUPI",
 				Detail: err.Error(),
-				Status: http.StatusInternalServerError,
+				Status: http.StatusBadGateway,
 			}
 			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
-			c.JSON(http.StatusInternalServerError, problemDetails)
+			c.JSON(http.StatusBadGateway, problemDetails)
 			return
 		}
 		eapAkaPrimeIdentity = ueid
