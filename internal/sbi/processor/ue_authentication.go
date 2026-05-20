@@ -244,6 +244,18 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	var authInfoReq models.AuthenticationInfoRequest
 
 	supiOrSuci := updateAuthenticationInfo.SupiOrSuci
+	if !validator.IsValidSupi(supiOrSuci) && !validator.IsValidSuci(supiOrSuci) {
+		logger.UeAuthLog.Warnf("invalid supiOrSuci in UE authentication request: %q", supiOrSuci)
+		problemDetails := models.ProblemDetails{
+			Title:  "Malformed request syntax",
+			Status: http.StatusBadRequest,
+			Detail: "supiOrSuci must be a valid SUPI or SUCI",
+			Cause:  "MALFORMED_SUPI_OR_SUCI",
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusBadRequest, problemDetails)
+		return
+	}
 
 	snName := updateAuthenticationInfo.ServingNetworkName
 	servingNetworkAuthorized := ausf_context.IsServingNetworkAuthorized(snName)
