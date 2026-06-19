@@ -1,9 +1,9 @@
 package processor
 
 import (
-	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -132,10 +132,10 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 			XRES := ausfCurrentContext.XRES
 			RES := hex.EncodeToString(decodeEapAkaPrimePkt.Attributes[ausf_context.AT_RES_ATTRIBUTE].Value)
 
-			if !bytes.Equal(MAC, XMAC) {
+			if !constantTimeEqual(MAC, XMAC) {
 				eapOK = false
 				eapErrStr = "EAP-AKA' integrity check fail"
-			} else if XRES == RES {
+			} else if constantTimeHexEqual(XRES, RES) {
 				logger.AuthELog.Infoln("Correct RES value, EAP-AKA' auth succeed")
 				eapSession.KSeaf = ausfCurrentContext.Kseaf
 				eapSession.Supi = currentSupi
@@ -391,7 +391,6 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 		}
 		hxresStarAll := sha256.Sum256(hxresStarBytes)
 		hxresStar := hex.EncodeToString(hxresStarAll[16:]) // last 128 bits
-		logger.Auth5gAkaLog.Infof("XresStar = %x\n", authInfoResult.AuthenticationVector.XresStar)
 
 		// Derive Kseaf from Kausf
 		Kausf := authInfoResult.AuthenticationVector.Kausf
@@ -575,8 +574,7 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(c *gin.Context, updateConfi
 	servingNetworkName := ausfCurrentContext.ServingNetworkName
 
 	// Compare the received RES* with the stored XRES*
-	logger.Auth5gAkaLog.Infof("res*: %x\nXres*: %x\n", updateConfirmationData.ResStar, ausfCurrentContext.XresStar)
-	if strings.EqualFold(updateConfirmationData.ResStar, ausfCurrentContext.XresStar) {
+	if constantTimeHexEqual(updateConfirmationData.ResStar, ausfCurrentContext.XresStar) {
 		ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_SUCCESS
 		confirmDataRsp.AuthResult = models.AusfUeAuthenticationAuthResult_SUCCESS
 		success = true
@@ -603,6 +601,24 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(c *gin.Context, updateConfi
 	}
 
 	c.JSON(http.StatusOK, confirmDataRsp)
+}
+
+func constantTimeHexEqual(a, b string) bool {
+	aBytes, err := hex.DecodeString(a)
+	if err != nil {
+		return false
+	}
+
+	bBytes, err := hex.DecodeString(b)
+	if err != nil {
+		return false
+	}
+
+	return constantTimeEqual(aBytes, bBytes)
+}
+
+func constantTimeEqual(a, b []byte) bool {
+	return len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1
 }
 
 func KDF5gAka(param ...string) hash.Hash {
