@@ -360,7 +360,21 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	ausfUeContext.ServingNetworkName = snName
 	ausfUeContext.AuthStatus = models.AusfUeAuthenticationAuthResult_ONGOING
 	ausfUeContext.UdmUeauUrl = udmUrl
-	ausf_context.AddAusfUeContextToPool(ausfUeContext)
+	if updateAuthenticationInfo.ResynchronizationInfo != nil {
+		ausf_context.AddAusfUeContextToPool(ausfUeContext)
+	} else if existingContext, ok := ausf_context.AddAusfUeContextToPoolIfNoOngoing(ausfUeContext); !ok {
+		logger.UeAuthLog.Warnf("authentication already in progress for SUPI %s with status %s",
+			ueid, existingContext.AuthStatus)
+		problemDetails := models.ProblemDetails{
+			Title:  "Authentication already in progress",
+			Cause:  "AUTHENTICATION_IN_PROGRESS",
+			Detail: "an authentication procedure for this SUPI is already in progress",
+			Status: http.StatusConflict,
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusConflict, problemDetails)
+		return
+	}
 
 	logger.UeAuthLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
 	ausf_context.AddSuciSupiPairToMap(supiOrSuci, ueid)
