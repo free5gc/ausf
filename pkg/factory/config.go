@@ -16,6 +16,7 @@ import (
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/util/nfheartbeat"
 )
 
 const (
@@ -74,6 +75,9 @@ type Configuration struct {
 	PlmnSupportList      []models.PlmnId `yaml:"plmnSupportList,omitempty" valid:"required"`
 	GroupId              string          `yaml:"groupId,omitempty" valid:"type(string),minstringlength(1)"`
 	EapAkaSupiImsiPrefix bool            `yaml:"eapAkaSupiImsiPrefix,omitempty" valid:"type(bool),optional"`
+	// NfHeartBeatTimer is the fallback heartbeat interval in seconds, from 1 to
+	// 3600 as the NRF accepts. The interval the NRF assigns always wins.
+	NfHeartBeatTimer int32 `yaml:"nfHeartBeatTimer,omitempty" valid:"optional,range(1|3600)"`
 }
 
 type Logger struct {
@@ -232,6 +236,17 @@ func appendInvalid(err error) error {
 	}
 
 	return error(errs)
+}
+
+// GetNfHeartBeatTimer returns the fallback heartbeat interval in seconds.
+func (c *Config) GetNfHeartBeatTimer() int32 {
+	c.RWMutex.RLock()
+	defer c.RWMutex.RUnlock()
+
+	if c.Configuration != nil && c.Configuration.NfHeartBeatTimer > 0 {
+		return c.Configuration.NfHeartBeatTimer
+	}
+	return nfheartbeat.DefaultTimer
 }
 
 func (c *Config) GetVersion() string {

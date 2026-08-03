@@ -2,7 +2,6 @@ package consumer
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"time"
 
@@ -15,7 +14,12 @@ import (
 	Nnrf_NFDiscovery "github.com/free5gc/openapi/nrf/NFDiscovery"
 	Nnrf_NFManagement "github.com/free5gc/openapi/nrf/NFManagement"
 	sbi_metrics "github.com/free5gc/util/metrics/sbi"
+	"github.com/free5gc/util/nfheartbeat"
 )
+
+// registerRetryInterval is the wait between two NFRegister attempts while the NRF
+// is unreachable.
+const registerRetryInterval = 2 * time.Second
 
 type nnrfService struct {
 	consumer *Consumer
@@ -25,6 +29,14 @@ type nnrfService struct {
 
 	nfMngmntClients map[string]*Nnrf_NFManagement.APIClient
 	nfDiscClients   map[string]*Nnrf_NFDiscovery.APIClient
+
+	heartbeat *nfheartbeat.Runner
+
+	// heartbeatTimer is the interval in seconds last assigned in a registration
+	// response; PATCH-adopted values live in the Runner. Set by the startup
+	// registration before the heartbeat goroutine starts, then only rewritten
+	// from re-registrations on that same goroutine.
+	heartbeatTimer int32
 }
 
 func (s *nnrfService) getNFManagementClient(uri string) *Nnrf_NFManagement.APIClient {
@@ -33,8 +45,15 @@ func (s *nnrfService) getNFManagementClient(uri string) *Nnrf_NFManagement.APICl
 	}
 	s.nfMngmntMu.RLock()
 	client, ok := s.nfMngmntClients[uri]
+	s.nfMngmntMu.RUnlock()
 	if ok {
-		s.nfMngmntMu.RUnlock()
+		return client
+	}
+
+	s.nfMngmntMu.Lock()
+	defer s.nfMngmntMu.Unlock()
+	// Another caller may have stored a client while the read lock was down.
+	if client, ok = s.nfMngmntClients[uri]; ok {
 		return client
 	}
 
@@ -43,9 +62,6 @@ func (s *nnrfService) getNFManagementClient(uri string) *Nnrf_NFManagement.APICl
 	configuration.SetMetrics(sbi_metrics.SbiMetricHook)
 	client = Nnrf_NFManagement.NewAPIClient(configuration)
 
-	s.nfMngmntMu.RUnlock()
-	s.nfMngmntMu.Lock()
-	defer s.nfMngmntMu.Unlock()
 	s.nfMngmntClients[uri] = client
 	return client
 }
@@ -56,8 +72,15 @@ func (s *nnrfService) getNFDiscClient(uri string) *Nnrf_NFDiscovery.APIClient {
 	}
 	s.nfDiscMu.RLock()
 	client, ok := s.nfDiscClients[uri]
+	s.nfDiscMu.RUnlock()
 	if ok {
-		s.nfDiscMu.RUnlock()
+		return client
+	}
+
+	s.nfDiscMu.Lock()
+	defer s.nfDiscMu.Unlock()
+	// Another caller may have stored a client while the read lock was down.
+	if client, ok = s.nfDiscClients[uri]; ok {
 		return client
 	}
 
@@ -66,9 +89,6 @@ func (s *nnrfService) getNFDiscClient(uri string) *Nnrf_NFDiscovery.APIClient {
 	configuration.SetMetrics(sbi_metrics.SbiMetricHook)
 	client = Nnrf_NFDiscovery.NewAPIClient(configuration)
 
-	s.nfDiscMu.RUnlock()
-	s.nfDiscMu.Lock()
-	defer s.nfDiscMu.Unlock()
 	s.nfDiscClients[uri] = client
 	return client
 }
@@ -105,19 +125,24 @@ func (s *nnrfService) SendSearchNFInstances(
 func (s *nnrfService) SendDeregisterNFInstance() (*models.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("[AUSF] Send Deregister NFInstance")
 
-	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_NFM, models.NrfNfManagementNfType_NRF)
+	ausfContext := s.consumer.Context()
+	ctx, pd, err := ausfContext.GetTokenCtx(models.ServiceName_NNRF_NFM, models.NrfNfManagementNfType_NRF)
 	if err != nil {
 		return pd, err
 	}
 
-	ausfContext := s.consumer.Context()
 	client := s.getNFManagementClient(ausfContext.NrfUri)
+	if client == nil {
+		return nil, openapi.ReportError("nrf not found")
+	}
+
 	request := &Nnrf_NFManagement.DeregisterNFInstanceRequest{
 		NfInstanceID: &ausfContext.NfId,
 	}
 
 	_, err = client.NFInstanceIDDocumentApi.DeregisterNFInstance(ctx, request)
-	if apiErr, ok := err.(openapi.GenericOpenAPIError); ok {
+	var apiErr openapi.GenericOpenAPIError
+	if errors.As(err, &apiErr) {
 		// API error
 		if deregNfError, okDeg := apiErr.Model().(Nnrf_NFManagement.DeregisterNFInstanceError); okDeg {
 			return &deregNfError.ProblemDetails, err
@@ -127,63 +152,110 @@ func (s *nnrfService) SendDeregisterNFInstance() (*models.ProblemDetails, error)
 	return nil, err
 }
 
-func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
-	resouceNrfUri string, retrieveNfInstanceID string, err error,
-) {
+// RegisterNFInstance registers the NF profile with the NRF, retrying until it
+// succeeds or ctx is cancelled. applyOAuth2 must be true only for the startup
+// registration: it writes OAuth2Required, which SBI handlers read concurrently
+// once the server is running.
+//
+// The profile keeps ausfContext.NfId: NFRegister is a PUT on the instance ID the
+// AUSF chose, per 3GPP TS 29.510 clause 6.1.3.2.2.
+func (s *nnrfService) RegisterNFInstance(ctx context.Context, applyOAuth2 bool) error {
 	ausfContext := s.consumer.Context()
 	client := s.getNFManagementClient(ausfContext.NrfUri)
-	nfProfile, err := s.buildNfProfile(ausfContext)
-	if err != nil {
-		return "", "", errors.Wrap(err, "RegisterNFInstance buildNfProfile()")
+	if client == nil {
+		return openapi.ReportError("nrf not found")
 	}
 
-	var nf models.NrfNfManagementNfProfile
+	nfProfile, err := s.buildNfProfile(ausfContext)
+	if err != nil {
+		return errors.Wrap(err, "RegisterNFInstance buildNfProfile()")
+	}
+
 	var res *Nnrf_NFManagement.RegisterNFInstanceResponse
 	registerNFInstanceRequest := &Nnrf_NFManagement.RegisterNFInstanceRequest{
 		NfInstanceID:             &ausfContext.NfId,
 		NrfNfManagementNfProfile: &nfProfile,
 	}
-	for {
+	for ctx.Err() == nil {
+		res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(ctx, registerNFInstanceRequest)
+		if err == nil && res != nil {
+			s.processRegisterResponse(ausfContext, res.NrfNfManagementNfProfile, applyOAuth2)
+			return nil
+		}
+		logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 		select {
 		case <-ctx.Done():
-			return "", "", errors.Errorf("Context Cancel before RegisterNFInstance")
-		default:
-		}
-		res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(ctx, registerNFInstanceRequest)
-		if err != nil || res == nil {
-			logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		nf = res.NrfNfManagementNfProfile
-
-		// http.StatusOK
-		if res.Location == "" {
-			// NFUpdate
-			break
-		} else { // http.StatusCreated
-			// NFRegister
-			resourceUri := res.Location
-			resouceNrfUri = resourceUri[:strings.Index(resourceUri, "/nnrf-nfm/")]
-			retrieveNfInstanceID = resourceUri[strings.LastIndex(resourceUri, "/")+1:]
-
-			oauth2 := false
-			if nf.CustomInfo != nil {
-				v, ok := nf.CustomInfo["oauth2"].(bool)
-				if ok {
-					oauth2 = v
-					logger.MainLog.Infoln("OAuth2 setting receive from NRF:", oauth2)
-				}
-			}
-			ausf_context.GetSelf().OAuth2Required = oauth2
-			if oauth2 && ausf_context.GetSelf().NrfCertPem == "" {
-				logger.CfgLog.Error("OAuth2 enable but no nrfCertPem provided in config.")
-			}
-
-			break
+		case <-time.After(registerRetryInterval):
 		}
 	}
-	return resouceNrfUri, retrieveNfInstanceID, err
+	return errors.Errorf("Context Cancel before RegisterNFInstance")
+}
+
+// processRegisterResponse adopts what the NRF answered to the NFRegister PUT: the
+// heartbeat interval and the oauth2 custom info.
+func (s *nnrfService) processRegisterResponse(
+	ausfContext *ausf_context.AUSFContext,
+	nf models.NrfNfManagementNfProfile,
+	applyOAuth2 bool,
+) {
+	s.heartbeatTimer = nf.HeartBeatTimer
+
+	oauth2 := false
+	if v, ok := nf.CustomInfo["oauth2"].(bool); ok {
+		oauth2 = v
+		logger.MainLog.Infoln("OAuth2 setting receive from NRF:", oauth2)
+	}
+	if applyOAuth2 {
+		ausfContext.OAuth2Required = oauth2
+		if oauth2 && ausfContext.NrfCertPem == "" {
+			logger.CfgLog.Error("OAuth2 enable but no nrfCertPem provided in config.")
+		}
+	} else if oauth2 != ausfContext.OAuth2Required {
+		logger.ConsumerLog.Warnf("NRF OAuth2 setting changed to %v, restart AUSF to apply it", oauth2)
+	}
+}
+
+// SendUpdateNFInstance sends an NFUpdate PATCH to the NRF, honoring ctx. The
+// raw err comes back alongside any ProblemDetails so callers can read its
+// GenericOpenAPIError status.
+func (s *nnrfService) SendUpdateNFInstance(ctx context.Context, patchItem []models.PatchItem) (
+	nf models.NrfNfManagementNfProfile, problemDetails *models.ProblemDetails, err error,
+) {
+	ausfContext := s.consumer.Context()
+	tokCtx, pd, err := ausfContext.GetTokenCtx(models.ServiceName_NNRF_NFM, models.NrfNfManagementNfType_NRF)
+	if err != nil {
+		return nf, pd, err
+	}
+	// GetTokenCtx takes no parent, so the token request stays uncancellable;
+	// transplanting the token lets at least the PATCH honor ctx.
+	if tok := tokCtx.Value(openapi.ContextOAuth2); tok != nil {
+		ctx = context.WithValue(ctx, openapi.ContextOAuth2, tok)
+	}
+
+	client := s.getNFManagementClient(ausfContext.NrfUri)
+	if client == nil {
+		return nf, nil, openapi.ReportError("nrf not found")
+	}
+
+	request := &Nnrf_NFManagement.UpdateNFInstanceRequest{
+		NfInstanceID: &ausfContext.NfId,
+		PatchItem:    patchItem,
+	}
+
+	res, err := client.NFInstanceIDDocumentApi.UpdateNFInstance(ctx, request)
+	if err != nil {
+		var apiErr openapi.GenericOpenAPIError
+		if errors.As(err, &apiErr) {
+			if updateErr, okModel := apiErr.Model().(Nnrf_NFManagement.UpdateNFInstanceError); okModel {
+				return nf, &updateErr.ProblemDetails, err
+			}
+		}
+		return nf, nil, err
+	}
+	if res == nil {
+		return nf, nil, openapi.ReportError("empty NFUpdate response")
+	}
+	return res.NrfNfManagementNfProfile, nil, nil
 }
 
 func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
