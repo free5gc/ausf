@@ -22,7 +22,7 @@ type AUSFContext struct {
 	UriScheme            models.UriScheme
 	NrfUri               string
 	NrfCertPem           string
-	NfService            map[models.ServiceName]models.NrfNfManagementNfService
+	NfService            map[models.Nrf_NFMgmt_ServiceName]models.Nrf_NFMgmt_NFService
 	PlmnList             []models.PlmnId
 	UdmUeauUrl           string
 	snRegex              *regexp.Regexp
@@ -35,7 +35,7 @@ type AusfUeContext struct {
 	Kausf              string
 	Kseaf              string
 	ServingNetworkName string
-	AuthStatus         models.AusfUeAuthenticationAuthResult
+	AuthStatus         models.Ausf_UEAU_AuthResult
 	UdmUeauUrl         string
 
 	// for 5G AKA
@@ -105,7 +105,7 @@ func Init() {
 }
 
 type NFContext interface {
-	AuthorizationCheck(token string, serviceName models.ServiceName) error
+	AuthorizationCheck(token string, serviceName models.Nrf_NFMgmt_ServiceName) error
 }
 
 var _ NFContext = &AUSFContext{}
@@ -166,17 +166,17 @@ func (a *AUSFContext) GetSelfID() string {
 	return a.NfId
 }
 
-func (c *AUSFContext) GetTokenCtx(serviceName models.ServiceName, targetNF models.NrfNfManagementNfType) (
+func (c *AUSFContext) GetTokenCtx(serviceName models.Nrf_NFMgmt_ServiceName, targetNF models.Nrf_NFMgmt_NFType) (
 	context.Context, *models.ProblemDetails, error,
 ) {
 	if !c.OAuth2Required {
 		return context.TODO(), nil, nil
 	}
-	return oauth.GetTokenCtx(models.NrfNfManagementNfType_AUSF, targetNF,
+	return oauth.GetTokenCtx(models.Nrf_NFMgmt_NFType_AUSF, targetNF,
 		c.NfId, c.NrfUri, string(serviceName))
 }
 
-func (c *AUSFContext) AuthorizationCheck(token string, serviceName models.ServiceName) error {
+func (c *AUSFContext) AuthorizationCheck(token string, serviceName models.Nrf_NFMgmt_ServiceName) error {
 	if !c.OAuth2Required {
 		logger.UtilLog.Debugf("AUSFContext::AuthorizationCheck: OAuth2 not required\n")
 		return nil

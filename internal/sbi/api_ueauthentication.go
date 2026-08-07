@@ -108,7 +108,7 @@ func (s *Server) getUeAuthenticationRoutes() []Route {
 }
 
 func (s *Server) HTTPEapAuthMethod(c *gin.Context) {
-	var eapSessionReq models.EapSession
+	var eapSessionReq models.Ausf_UEAU_EapSession
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
@@ -143,7 +143,7 @@ func (s *Server) HTTPEapAuthMethod(c *gin.Context) {
 }
 
 func (s *Server) HTTPUeAuthenticationsPost(c *gin.Context) {
-	var authInfo models.AuthenticationInfo
+	var authInfo models.Ausf_UEAU_AuthenticationInfo
 
 	requestBody, err := c.GetRawData()
 	if err != nil {
@@ -177,7 +177,7 @@ func (s *Server) HTTPUeAuthenticationsPost(c *gin.Context) {
 }
 
 func (s *Server) HTTPUeAuthenticationsAuthCtxId5gAkaConfirmationPut(c *gin.Context) {
-	var confirmationData models.ConfirmationData
+	var confirmationData models.Ausf_UEAU_ConfirmationData
 
 	requestBody, err := c.GetRawData()
 	if err != nil {

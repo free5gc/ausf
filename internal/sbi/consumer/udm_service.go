@@ -7,7 +7,7 @@ import (
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
-	Nudm_UEAU "github.com/free5gc/openapi/udm/UEAuthentication"
+	Nudm_UEAU "github.com/free5gc/openapi/udm/UEAU"
 	sbi_metrics "github.com/free5gc/util/metrics/sbi"
 )
 
@@ -44,7 +44,7 @@ func (s *nudmService) getUdmUeauClient(uri string) *Nudm_UEAU.APIClient {
 
 func (s *nudmService) SendAuthResultToUDM(
 	id string,
-	authType models.UdmUeauAuthType,
+	authType models.Udm_UEAU_AuthType,
 	success bool,
 	servingNetworkName, udmUrl string,
 ) error {
@@ -53,7 +53,7 @@ func (s *nudmService) SendAuthResultToUDM(
 
 	self := s.consumer.Context()
 
-	authEvent := models.AuthEvent{
+	authEvent := models.Udm_UEAU_AuthEvent{
 		TimeStamp:          timePtr,
 		AuthType:           authType,
 		Success:            success,
@@ -63,14 +63,17 @@ func (s *nudmService) SendAuthResultToUDM(
 
 	client := s.getUdmUeauClient(udmUrl)
 
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NUDM_UEAU, models.NrfNfManagementNfType_UDM)
+	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(
+		models.Nrf_NFMgmt_ServiceName_NUDM_UEAU,
+		models.Nrf_NFMgmt_NFType_UDM,
+	)
 	if err != nil {
 		return err
 	}
 
 	request := &Nudm_UEAU.ConfirmAuthRequest{
-		Supi:      &id,        // Make sure this is correctly referenced
-		AuthEvent: &authEvent, // Make sure this is correctly referenced
+		Supi:        &id,
+		RequestBody: &authEvent,
 	}
 
 	_, confirmAuthErr := client.ConfirmAuthApi.ConfirmAuth(ctx, request)
@@ -84,34 +87,26 @@ func (s *nudmService) SendAuthResultToUDM(
 func (s *nudmService) GenerateAuthDataApi(
 	udmUrl string,
 	supiOrSuci string,
-	authInfoReq models.AuthenticationInfoRequest,
-) (*models.UdmUeauAuthenticationInfoResult, error) {
+	authInfoReq models.Udm_UEAU_AuthenticationInfoRequest,
+) (*models.Udm_UEAU_AuthenticationInfoResult, error) {
 	client := s.getUdmUeauClient(udmUrl)
 
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NUDM_UEAU, models.NrfNfManagementNfType_UDM)
+	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(
+		models.Nrf_NFMgmt_ServiceName_NUDM_UEAU,
+		models.Nrf_NFMgmt_NFType_UDM,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	udmAuthInfoReq := models.UdmUeauAuthenticationInfoRequest{
-		SupportedFeatures:     authInfoReq.SupportedFeatures,
-		ServingNetworkName:    authInfoReq.ServingNetworkName,
-		ResynchronizationInfo: authInfoReq.ResynchronizationInfo,
-		AusfInstanceId:        authInfoReq.AusfInstanceId,
-		CellCagInfo:           authInfoReq.CellCagInfo,
-		N5gcInd:               authInfoReq.N5gcInd,
-	}
-
 	request := &Nudm_UEAU.GenerateAuthDataRequest{
-		SupiOrSuci:                       &supiOrSuci,
-		UdmUeauAuthenticationInfoRequest: &udmAuthInfoReq,
+		SupiOrSuci:  &supiOrSuci,
+		RequestBody: &authInfoReq,
 	}
 
 	rsp, err := client.GenerateAuthDataApi.GenerateAuthData(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-	authInfoResult := rsp.UdmUeauAuthenticationInfoResult
-
-	return &authInfoResult, nil
+	return rsp.Udm_UEAU_AuthenticationInfoResult, nil
 }

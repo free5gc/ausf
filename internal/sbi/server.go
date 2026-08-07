@@ -64,27 +64,27 @@ func newRouter(s *Server) *gin.Engine {
 	router.Use(metrics.InboundMetrics())
 
 	for _, serviceName := range factory.AusfConfig.Configuration.ServiceNameList {
-		switch models.ServiceName(serviceName) {
-		case models.ServiceName_NAUSF_AUTH:
+		switch models.Nrf_NFMgmt_ServiceName(serviceName) {
+		case models.Nrf_NFMgmt_ServiceName_NAUSF_AUTH:
 			ausfUeAuthenticationGroup := router.Group(factory.AusfAuthResUriPrefix)
 			ausfUeAuthenticationRoutes := s.getUeAuthenticationRoutes()
-			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceName_NAUSF_AUTH)
+			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.Nrf_NFMgmt_ServiceName_NAUSF_AUTH)
 			ausfUeAuthenticationGroup.Use(func(c *gin.Context) {
 				routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
 			})
 			applyRoutes(ausfUeAuthenticationGroup, ausfUeAuthenticationRoutes)
-		case models.ServiceName_NAUSF_SORPROTECTION:
+		case models.Nrf_NFMgmt_ServiceName_NAUSF_SORPROTECTION:
 			ausfSorprotectionGroup := router.Group(factory.AusfSorprotectionResUriPrefix)
 			ausfSorprotectionRoutes := s.getSorprotectionRoutes()
-			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceName_NAUSF_SORPROTECTION)
+			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.Nrf_NFMgmt_ServiceName_NAUSF_SORPROTECTION)
 			ausfSorprotectionGroup.Use(func(c *gin.Context) {
 				routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
 			})
 			applyRoutes(ausfSorprotectionGroup, ausfSorprotectionRoutes)
-		case models.ServiceName_NAUSF_UPUPROTECTION:
+		case models.Nrf_NFMgmt_ServiceName_NAUSF_UPUPROTECTION:
 			ausfUpuprotectionGroup := router.Group(factory.AusfUpuprotectionResUriPrefix)
 			ausfUpuprotectionRoutes := s.getUpuprotectionRoutes()
-			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.ServiceName_NAUSF_UPUPROTECTION)
+			routerAuthorizationCheck := util.NewRouterAuthorizationCheck(models.Nrf_NFMgmt_ServiceName_NAUSF_UPUPROTECTION)
 			ausfUpuprotectionGroup.Use(func(c *gin.Context) {
 				routerAuthorizationCheck.Check(c, ausf_context.GetSelf())
 			})
