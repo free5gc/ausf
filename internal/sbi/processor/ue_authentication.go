@@ -317,6 +317,18 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 			c.JSON(http.StatusNotFound, models.ProblemDetails{Status: 404, Cause: "USER_NOT_FOUND"})
 			return
 		}
+		if existingContext.Resynced {
+			logger.UeAuthLog.Warnf("resynchronization already performed for SUPI %s", knownSupi)
+			problemDetails := models.ProblemDetails{
+				Title:  "Resynchronization already performed",
+				Cause:  "RESYNCHRONIZATION_ALREADY_PERFORMED",
+				Detail: "the current authentication context has already been resynchronized",
+				Status: http.StatusConflict,
+			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+			c.JSON(http.StatusConflict, problemDetails)
+			return
+		}
 		logger.UeAuthLog.Warningln(existingContext.Rand)
 		if resynchronizationInfo.Rand == "" {
 			resynchronizationInfo.Rand = existingContext.Rand
@@ -397,6 +409,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	ausfUeContext.ServingNetworkName = snName
 	ausfUeContext.AuthStatus = models.AusfUeAuthenticationAuthResult_ONGOING
 	ausfUeContext.UdmUeauUrl = udmUrl
+	ausfUeContext.Resynced = resynchronizationInfo != nil
 
 	locationURI := self.Url + factory.AusfAuthResUriPrefix + "/ue-authentications/" + supiOrSuci
 	putLink := locationURI
@@ -473,9 +486,6 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	case models.UdmUeauAuthType_EAP_AKA_PRIME:
 		logger.UeAuthLog.Infoln("Use EAP-AKA' auth method")
 		putLink += "/eap-session"
-		if updateAuthenticationInfo.ResynchronizationInfo != nil {
-			ausfUeContext.Resynced = true
-		}
 
 		identity := eapAkaPrimeIdentity
 		ikPrime := authInfoResult.AuthenticationVector.IkPrime
@@ -560,7 +570,32 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 		responseBody.Links["eap-session"] = []models.Link{linksValue}
 	}
 
-	ausf_context.AddAusfUeContextToPool(ausfUeContext)
+	if resynchronizationInfo != nil {
+		if !ausf_context.CompareAndSwapAusfUeContext(existingContext, ausfUeContext) {
+			logger.UeAuthLog.Warnf("authentication context changed while resynchronizing SUPI %s", knownSupi)
+			problemDetails := models.ProblemDetails{
+				Title:  "Authentication context changed",
+				Cause:  "AUTHENTICATION_CONTEXT_CHANGED",
+				Detail: "the authentication context changed while resynchronization was in progress",
+				Status: http.StatusConflict,
+			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+			c.JSON(http.StatusConflict, problemDetails)
+			return
+		}
+	} else if existingContext, ok := ausf_context.AddAusfUeContextToPoolIfNoOngoing(ausfUeContext); !ok {
+		logger.UeAuthLog.Warnf("authentication already in progress for SUPI %s with status %s",
+			ueid, existingContext.AuthStatus)
+		problemDetails := models.ProblemDetails{
+			Title:  "Authentication already in progress",
+			Cause:  "AUTHENTICATION_IN_PROGRESS",
+			Detail: "an authentication procedure for this SUPI is already in progress",
+			Status: http.StatusConflict,
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusConflict, problemDetails)
+		return
+	}
 
 	logger.UeAuthLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
 	ausf_context.AddSuciSupiPairToMap(supiOrSuci, ueid)
