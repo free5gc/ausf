@@ -169,7 +169,7 @@ func (a *AusfApp) Start() {
 	a.wg.Add(1)
 	go a.listenShutdownEvent()
 
-	if err := a.sbiServer.Run(context.Background(), &a.wg); err != nil {
+	if err := a.sbiServer.Run(a.ctx, &a.wg); err != nil {
 		logger.MainLog.Fatalf("Run SBI server failed: %+v", err)
 	}
 
@@ -201,6 +201,9 @@ func (a *AusfApp) Terminate() {
 func (a *AusfApp) terminateProcedure() {
 	logger.MainLog.Infof("Terminating AUSF...")
 	a.CallServerStop()
+
+	// no heartbeat PATCH or re-registration PUT may land after the deregistration
+	a.Consumer().WaitHeartbeatStopped()
 
 	// deregister with NRF
 	problemDetails, err := a.Consumer().SendDeregisterNFInstance()

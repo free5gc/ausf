@@ -27,3 +27,7 @@ cscope.*
 # Debug
 *.log
 *.pcap
+
+# Local Go workspace
+go.work
+go.work.sum
