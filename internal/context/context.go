@@ -120,26 +120,6 @@ func AddAusfUeContextToPool(ausfUeContext *AusfUeContext) {
 	ausfContext.UePool.Store(ausfUeContext.Supi, ausfUeContext)
 }
 
-func AddAusfUeContextToPoolIfNoOngoing(ausfUeContext *AusfUeContext) (existing *AusfUeContext, ok bool) {
-	for {
-		// TODO: model ServingNetworkName in the context key/lookup lifecycle if
-		// AUSF needs to separate the same SUPI across serving networks.
-		context, loaded := ausfContext.UePool.LoadOrStore(ausfUeContext.Supi, ausfUeContext)
-		if !loaded {
-			return nil, true
-		}
-
-		existingContext := context.(*AusfUeContext)
-		if existingContext.AuthStatus == models.AusfUeAuthenticationAuthResult_ONGOING {
-			return existingContext, false
-		}
-
-		if ausfContext.UePool.CompareAndSwap(ausfUeContext.Supi, existingContext, ausfUeContext) {
-			return existingContext, true
-		}
-	}
-}
-
 func CheckIfAusfUeContextExists(ref string) bool {
 	_, ok := ausfContext.UePool.Load(ref)
 	return ok

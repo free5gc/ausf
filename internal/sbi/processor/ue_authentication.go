@@ -287,29 +287,55 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	self := ausf_context.GetSelf()
 	authInfoReq.AusfInstanceId = self.GetSelfID()
 
-	var lastEapID uint8
-	if updateAuthenticationInfo.ResynchronizationInfo != nil {
-		logger.UeAuthLog.Warningln("Auts: ", updateAuthenticationInfo.ResynchronizationInfo.Auts)
-		if !ausf_context.CheckIfSuciSupiPairExists(supiOrSuci) {
+	resynchronizationInfo := updateAuthenticationInfo.ResynchronizationInfo
+	knownSupi := ""
+	mappingExists := ausf_context.CheckIfSuciSupiPairExists(supiOrSuci)
+	if mappingExists {
+		knownSupi = ausf_context.GetSupiFromSuciSupiMap(supiOrSuci)
+	} else if validator.IsValidSupi(supiOrSuci) {
+		knownSupi = supiOrSuci
+	}
+
+	if resynchronizationInfo != nil {
+		logger.UeAuthLog.Warningln("Auts: ", resynchronizationInfo.Auts)
+		if !mappingExists {
 			logger.UeAuthLog.Warningln("Resync failed: SUCI mapping not found for ", supiOrSuci)
 			c.JSON(http.StatusNotFound, models.ProblemDetails{Status: 404, Cause: "USER_NOT_FOUND"})
 			return
 		}
-		ausfCurrentSupi := ausf_context.GetSupiFromSuciSupiMap(supiOrSuci)
-		logger.UeAuthLog.Warningln(ausfCurrentSupi)
-		if !ausf_context.CheckIfAusfUeContextExists(ausfCurrentSupi) {
-			logger.UeAuthLog.Warningln("Resync failed: AusfUeContext not found for SUPI: ", ausfCurrentSupi)
+	}
+
+	contextExists := knownSupi != "" && ausf_context.CheckIfAusfUeContextExists(knownSupi)
+	var existingContext *ausf_context.AusfUeContext
+	if contextExists {
+		existingContext = ausf_context.GetAusfUeContext(knownSupi)
+	}
+	var lastEapID uint8
+	if resynchronizationInfo != nil {
+		if !contextExists {
+			logger.UeAuthLog.Warningln("Resync failed: AusfUeContext not found for SUPI: ", knownSupi)
 			c.JSON(http.StatusNotFound, models.ProblemDetails{Status: 404, Cause: "USER_NOT_FOUND"})
 			return
 		}
-		ausfCurrentContext := ausf_context.GetAusfUeContext(ausfCurrentSupi)
-		logger.UeAuthLog.Warningln(ausfCurrentContext.Rand)
-		if updateAuthenticationInfo.ResynchronizationInfo.Rand == "" {
-			updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
+		logger.UeAuthLog.Warningln(existingContext.Rand)
+		if resynchronizationInfo.Rand == "" {
+			resynchronizationInfo.Rand = existingContext.Rand
 		}
-		logger.UeAuthLog.Warningln("Rand: ", updateAuthenticationInfo.ResynchronizationInfo.Rand)
-		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
-		lastEapID = ausfCurrentContext.EapID
+		logger.UeAuthLog.Warningln("Rand: ", resynchronizationInfo.Rand)
+		authInfoReq.ResynchronizationInfo = resynchronizationInfo
+		lastEapID = existingContext.EapID
+	} else if contextExists && existingContext.AuthStatus == models.AusfUeAuthenticationAuthResult_ONGOING {
+		logger.UeAuthLog.Warnf("authentication already in progress for SUPI %s with status %s",
+			knownSupi, existingContext.AuthStatus)
+		problemDetails := models.ProblemDetails{
+			Title:  "Authentication already in progress",
+			Cause:  "AUTHENTICATION_IN_PROGRESS",
+			Detail: "an authentication procedure for this SUPI is already in progress",
+			Status: http.StatusConflict,
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusConflict, problemDetails)
+		return
 	}
 
 	udmUrl, err := p.Consumer().GetUdmUrl(self.NrfUri)
@@ -534,21 +560,7 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 		responseBody.Links["eap-session"] = []models.Link{linksValue}
 	}
 
-	if updateAuthenticationInfo.ResynchronizationInfo != nil {
-		ausf_context.AddAusfUeContextToPool(ausfUeContext)
-	} else if existingContext, ok := ausf_context.AddAusfUeContextToPoolIfNoOngoing(ausfUeContext); !ok {
-		logger.UeAuthLog.Warnf("authentication already in progress for SUPI %s with status %s",
-			ueid, existingContext.AuthStatus)
-		problemDetails := models.ProblemDetails{
-			Title:  "Authentication already in progress",
-			Cause:  "AUTHENTICATION_IN_PROGRESS",
-			Detail: "an authentication procedure for this SUPI is already in progress",
-			Status: http.StatusConflict,
-		}
-		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
-		c.JSON(http.StatusConflict, problemDetails)
-		return
-	}
+	ausf_context.AddAusfUeContextToPool(ausfUeContext)
 
 	logger.UeAuthLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
 	ausf_context.AddSuciSupiPairToMap(supiOrSuci, ueid)
