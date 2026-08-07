@@ -113,6 +113,17 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 	} else if eapContent.Type != ausf_context.EAP_AKA_PRIME_TYPENUM {
 		eapOK = false
 		eapErrStr = "eap packet type error"
+	} else if eapContent.Id != ausfCurrentContext.EapID {
+		logger.AuthELog.Warnf("Ignore stale EAP response identifier %d; outstanding request identifier is %d",
+			eapContent.Id, ausfCurrentContext.EapID)
+		problemDetails := models.ProblemDetails{
+			Status: http.StatusConflict,
+			Detail: "EAP response identifier does not match the outstanding request",
+			Cause:  "EAP_IDENTIFIER_MISMATCH",
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(int(problemDetails.Status), problemDetails)
+		return
 	} else if decodeEapAkaPrimePkt, err := decodeEapAkaPrime(eapContent.Contents); err != nil {
 		logger.AuthELog.Warnf("EAP-AKA' decode failed: %+v", err)
 		eapOK = false
@@ -360,24 +371,6 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	ausfUeContext.ServingNetworkName = snName
 	ausfUeContext.AuthStatus = models.AusfUeAuthenticationAuthResult_ONGOING
 	ausfUeContext.UdmUeauUrl = udmUrl
-	if updateAuthenticationInfo.ResynchronizationInfo != nil {
-		ausf_context.AddAusfUeContextToPool(ausfUeContext)
-	} else if existingContext, ok := ausf_context.AddAusfUeContextToPoolIfNoOngoing(ausfUeContext); !ok {
-		logger.UeAuthLog.Warnf("authentication already in progress for SUPI %s with status %s",
-			ueid, existingContext.AuthStatus)
-		problemDetails := models.ProblemDetails{
-			Title:  "Authentication already in progress",
-			Cause:  "AUTHENTICATION_IN_PROGRESS",
-			Detail: "an authentication procedure for this SUPI is already in progress",
-			Status: http.StatusConflict,
-		}
-		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
-		c.JSON(http.StatusConflict, problemDetails)
-		return
-	}
-
-	logger.UeAuthLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
-	ausf_context.AddSuciSupiPairToMap(supiOrSuci, ueid)
 
 	locationURI := self.Url + factory.AusfAuthResUriPrefix + "/ue-authentications/" + supiOrSuci
 	putLink := locationURI
@@ -454,6 +447,9 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	case models.UdmUeauAuthType_EAP_AKA_PRIME:
 		logger.UeAuthLog.Infoln("Use EAP-AKA' auth method")
 		putLink += "/eap-session"
+		if updateAuthenticationInfo.ResynchronizationInfo != nil {
+			ausfUeContext.Resynced = true
+		}
 
 		identity := eapAkaPrimeIdentity
 		ikPrime := authInfoResult.AuthenticationVector.IkPrime
@@ -537,6 +533,25 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 		responseBody.Links = make(map[string][]models.Link)
 		responseBody.Links["eap-session"] = []models.Link{linksValue}
 	}
+
+	if updateAuthenticationInfo.ResynchronizationInfo != nil {
+		ausf_context.AddAusfUeContextToPool(ausfUeContext)
+	} else if existingContext, ok := ausf_context.AddAusfUeContextToPoolIfNoOngoing(ausfUeContext); !ok {
+		logger.UeAuthLog.Warnf("authentication already in progress for SUPI %s with status %s",
+			ueid, existingContext.AuthStatus)
+		problemDetails := models.ProblemDetails{
+			Title:  "Authentication already in progress",
+			Cause:  "AUTHENTICATION_IN_PROGRESS",
+			Detail: "an authentication procedure for this SUPI is already in progress",
+			Status: http.StatusConflict,
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusConflict, problemDetails)
+		return
+	}
+
+	logger.UeAuthLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
+	ausf_context.AddSuciSupiPairToMap(supiOrSuci, ueid)
 
 	responseBody.AuthType = models.AusfUeAuthenticationAuthType(authInfoResult.AuthType)
 
