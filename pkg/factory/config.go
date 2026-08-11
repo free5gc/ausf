@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/google/uuid"
@@ -32,6 +33,7 @@ const (
 	AusfMetricsDefaultScheme      = "https"
 	AusfMetricsDefaultNamespace   = "free5gc"
 	AusfDefaultNrfUri             = "https://127.0.0.10:8000"
+	AusfDefaultAuthContextTimeout = 60 * time.Second
 	AusfSorprotectionResUriPrefix = "/nausf-sorprotection/v1"
 	AusfAuthResUriPrefix          = "/nausf-auth/v1"
 	AusfUpuprotectionResUriPrefix = "/nausf-upuprotection/v1"
@@ -74,6 +76,7 @@ type Configuration struct {
 	PlmnSupportList      []models.PlmnId `yaml:"plmnSupportList,omitempty" valid:"required"`
 	GroupId              string          `yaml:"groupId,omitempty" valid:"type(string),minstringlength(1)"`
 	EapAkaSupiImsiPrefix bool            `yaml:"eapAkaSupiImsiPrefix,omitempty" valid:"type(bool),optional"`
+	AuthContextTimeout   uint            `yaml:"authContextTimeout,omitempty" valid:"optional,range(1|3600)"`
 }
 
 type Logger struct {
@@ -158,6 +161,16 @@ func (c *Config) GetNfInstanceId() string {
 	logger.CfgLog.Debugf("nfInstanceId from %s : %s", AusfDefaultNfInstanceIdEnvVar, nfInstanceId)
 
 	return nfInstanceId
+}
+
+func (c *Config) GetAuthContextTimeout() time.Duration {
+	c.RLock()
+	defer c.RUnlock()
+
+	if c.Configuration == nil || c.Configuration.AuthContextTimeout == 0 {
+		return AusfDefaultAuthContextTimeout
+	}
+	return time.Duration(c.Configuration.AuthContextTimeout) * time.Second
 }
 
 type Sbi struct {
