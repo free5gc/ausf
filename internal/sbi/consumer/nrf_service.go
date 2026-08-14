@@ -103,10 +103,7 @@ func (s *nnrfService) SendSearchNFInstances(
 		return nil, openapi.ReportError("nrf not found")
 	}
 
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(
-		models.Nrf_NFMgmt_ServiceName_NNRF_DISC,
-		models.Nrf_NFMgmt_NFType_NRF,
-	)
+	ctx, _, err := s.consumer.Context().GetTokenCtxForNRF(models.Nrf_NFMgmt_ServiceName_NNRF_DISC)
 	if err != nil {
 		return nil, err
 	}
@@ -125,9 +122,8 @@ func (s *nnrfService) SendDeregisterNFInstance() (*models.ProblemDetails, error)
 	logger.ConsumerLog.Infof("[AUSF] Send Deregister NFInstance")
 
 	ausfContext := s.consumer.Context()
-	ctx, pd, err := ausfContext.GetTokenCtx(
+	ctx, pd, err := ausfContext.GetTokenCtxForNRF(
 		models.Nrf_NFMgmt_ServiceName_NNRF_NFM,
-		models.Nrf_NFMgmt_NFType_NRF,
 	)
 	if err != nil {
 		return pd, err
@@ -180,8 +176,7 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context, applyOAuth2 bool) 
 			if res.Nrf_NFMgmt_NFProfile != nil {
 				nf = *res.Nrf_NFMgmt_NFProfile
 			}
-			s.processRegisterResponse(ausfContext, nf, applyOAuth2)
-			return nil
+			return s.processRegisterResponse(ausfContext, nf, applyOAuth2)
 		}
 		logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 		select {
@@ -198,9 +193,7 @@ func (s *nnrfService) processRegisterResponse(
 	ausfContext *ausf_context.AUSFContext,
 	nf models.Nrf_NFMgmt_NFProfile,
 	applyOAuth2 bool,
-) {
-	s.heartbeatTimer = nf.HeartBeatTimer
-
+) error {
 	oauth2 := false
 	if customInfo, ok := nf.CustomInfo.(map[string]interface{}); ok {
 		if v, isBool := customInfo["oauth2"].(bool); isBool {
@@ -209,13 +202,14 @@ func (s *nnrfService) processRegisterResponse(
 		}
 	}
 	if applyOAuth2 {
-		ausfContext.OAuth2Required = oauth2
-		if oauth2 && ausfContext.NrfCertPem == "" {
-			logger.CfgLog.Error("OAuth2 enable but no nrfCertPem provided in config.")
+		if err := ausfContext.SetOAuth2Required(oauth2); err != nil {
+			return err
 		}
 	} else if oauth2 != ausfContext.OAuth2Required {
 		logger.ConsumerLog.Warnf("NRF OAuth2 setting changed to %v, restart AUSF to apply it", oauth2)
 	}
+	s.heartbeatTimer = nf.HeartBeatTimer
+	return nil
 }
 
 // SendUpdateNFInstance sends an NFUpdate PATCH to the NRF, honoring ctx. The
@@ -225,9 +219,8 @@ func (s *nnrfService) SendUpdateNFInstance(ctx context.Context, patchItems []mod
 	nf models.Nrf_NFMgmt_NFProfile, problemDetails *models.ProblemDetails, err error,
 ) {
 	ausfContext := s.consumer.Context()
-	tokCtx, pd, err := ausfContext.GetTokenCtx(
+	tokCtx, pd, err := ausfContext.GetTokenCtxForNRF(
 		models.Nrf_NFMgmt_ServiceName_NNRF_NFM,
-		models.Nrf_NFMgmt_NFType_NRF,
 	)
 	if err != nil {
 		return nf, pd, err

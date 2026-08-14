@@ -10,6 +10,8 @@ github.com/bytedance/sonic v1.11.6 h1:oUp34TzMlL+OY1OUWxHqsdkgC/Zfc85zGqw9siXjrc
 github.com/bytedance/sonic v1.11.6/go.mod h1:LysEHSvpvDySVdC2f87zGWf6CIKJcAvqab1ZaiQtds4=
 github.com/bytedance/sonic/loader v0.1.1 h1:c+e5Pt1k/cy5wMveRDyk2X4B9hF4g7an8N3zCYjJFNM=
 github.com/bytedance/sonic/loader v0.1.1/go.mod h1:ncP89zfokxS5LZrJxl5z0UJcsk4M4yY2JpfqGeCtNLU=
+github.com/carlhus/openapi v0.0.0-20260821053527-127c60ebf021 h1:7NfiZk/ffa9fqvcGfwoE1xZ3j0ZOpW1o5U3YoVa2zIs=
+github.com/carlhus/openapi v0.0.0-20260821053527-127c60ebf021/go.mod h1:ggzAcwqg4JotSSdUvFFFruK6M0Yyr6mhBOCFaDHZmdE=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cloudwego/base64x v0.1.4 h1:jwCgWpFanWmN8xoIUHa2rtzmkd5J2plF/dnLS6Xd/0Y=
@@ -29,6 +31,8 @@ github.com/free5gc/ngap v1.1.4-0.20260707055048-c26215fe47ef h1:+TrPHbLcROsjDUuw
 github.com/free5gc/ngap v1.1.4-0.20260707055048-c26215fe47ef/go.mod h1:1lfw7JP0fs8bdv0B685KDC2/shOciL9gf1f3KwKnGvk=
 github.com/free5gc/openapi v1.3.1-0.20261014070323-89accd9890ce h1:XNRcx+HWt59BwpCLiCv58totgzh/IFk0DY8daPm2K5c=
 github.com/free5gc/openapi v1.3.1-0.20261014070323-89accd9890ce/go.mod h1:ggzAcwqg4JotSSdUvFFFruK6M0Yyr6mhBOCFaDHZmdE=
+github.com/free5gc/util v1.4.0 h1:vdjzRUgxEYtjIy6AYkO4JuIQHV8DqBb1paNqJiajeus=
+github.com/free5gc/util v1.4.0/go.mod h1:ihddsLLECOOIkYzAlgkK3CVXmQh9HTGEagaJT9Rv/+I=
 github.com/free5gc/util v1.4.1-0.20261014070359-d865b0ce854b h1:PEj810Hxh0XFH2w3VEmAt+rXRoZ25hsnc0hZo0624Iw=
 github.com/free5gc/util v1.4.1-0.20261014070359-d865b0ce854b/go.mod h1:/KTrB9YEXvGFBoOuX18kdPlwVuOd4MIbdHC/Qhq2wTU=
 github.com/gabriel-vasile/mimetype v1.4.3 h1:in2uUcidCuFcDKtdcBxlR0rJ1+fsokWf+uqxgUFjbI0=
