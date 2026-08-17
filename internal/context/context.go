@@ -4,6 +4,7 @@ import (
 	"context"
 	"regexp"
 	"sync"
+	"time"
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
@@ -11,42 +12,50 @@ import (
 )
 
 type AUSFContext struct {
-	suciSupiMap          sync.Map
-	UePool               sync.Map
-	NfId                 string
-	GroupID              string
-	SBIPort              int
-	RegisterIPv4         string
-	BindingIPv4          string
-	Url                  string
-	UriScheme            models.UriScheme
-	NrfUri               string
-	NrfCertPem           string
-	NfService            map[models.ServiceName]models.NrfNfManagementNfService
-	PlmnList             []models.PlmnId
-	UdmUeauUrl           string
-	snRegex              *regexp.Regexp
-	EapAkaSupiImsiPrefix bool
-	OAuth2Required       bool
+	suciSupiMap               sync.Map
+	authenticationRequestPool sync.Map
+	UePool                    sync.Map
+	NfId                      string
+	GroupID                   string
+	SBIPort                   int
+	RegisterIPv4              string
+	BindingIPv4               string
+	Url                       string
+	UriScheme                 models.UriScheme
+	NrfUri                    string
+	NrfCertPem                string
+	NfService                 map[models.ServiceName]models.NrfNfManagementNfService
+	PlmnList                  []models.PlmnId
+	UdmUeauUrl                string
+	snRegex                   *regexp.Regexp
+	EapAkaSupiImsiPrefix      bool
+	AuthContextTimeout        time.Duration
+	OAuth2Required            bool
 }
 
 type AusfUeContext struct {
+	stateMu            sync.RWMutex
+	authStatus         models.AusfUeAuthenticationAuthResult
+	resynced           bool
+	expiresAt          time.Time
 	Supi               string
 	Kausf              string
 	Kseaf              string
 	ServingNetworkName string
-	AuthStatus         models.AusfUeAuthenticationAuthResult
 	UdmUeauUrl         string
 
 	// for 5G AKA
 	XresStar string
 
 	// for EAP-AKA'
-	K_aut    string
-	XRES     string
-	Rand     string
-	EapID    uint8
-	Resynced bool
+	K_aut string
+	XRES  string
+	Rand  string
+	EapID uint8
+}
+
+type AuthenticationRequestReservation struct {
+	expiresAt time.Time
 }
 
 type SuciSupiMap struct {
@@ -116,8 +125,97 @@ func NewAusfUeContext(identifier string) (ausfUeContext *AusfUeContext) {
 	return ausfUeContext
 }
 
+func (c *AusfUeContext) InitializeAuthenticationState(
+	status models.AusfUeAuthenticationAuthResult,
+	resynced bool,
+	expiresAt time.Time,
+) {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	c.authStatus = status
+	c.resynced = resynced
+	c.expiresAt = expiresAt
+}
+
+func (c *AusfUeContext) AuthenticationState(now time.Time) (
+	status models.AusfUeAuthenticationAuthResult,
+	resynced bool,
+	expired bool,
+) {
+	c.stateMu.RLock()
+	defer c.stateMu.RUnlock()
+	status = c.authStatus
+	resynced = c.resynced
+	expired = status == models.AusfUeAuthenticationAuthResult_ONGOING &&
+		!c.expiresAt.IsZero() && !now.Before(c.expiresAt)
+	return
+}
+
+func (c *AusfUeContext) SetAuthStatus(status models.AusfUeAuthenticationAuthResult) {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	c.authStatus = status
+}
+
 func AddAusfUeContextToPool(ausfUeContext *AusfUeContext) {
 	ausfContext.UePool.Store(ausfUeContext.Supi, ausfUeContext)
+}
+
+func AddAusfUeContextToPoolIfNoOngoing(
+	ausfUeContext *AusfUeContext,
+	now time.Time,
+) (existing *AusfUeContext, ok bool) {
+	for {
+		// TODO: model ServingNetworkName in the context key/lookup lifecycle if
+		// AUSF needs to separate the same SUPI across serving networks.
+		context, loaded := ausfContext.UePool.LoadOrStore(ausfUeContext.Supi, ausfUeContext)
+		if !loaded {
+			return nil, true
+		}
+
+		existingContext := context.(*AusfUeContext)
+		status, _, expired := existingContext.AuthenticationState(now)
+		if status == models.AusfUeAuthenticationAuthResult_ONGOING && !expired {
+			return existingContext, false
+		}
+
+		if ausfContext.UePool.CompareAndSwap(ausfUeContext.Supi, existingContext, ausfUeContext) {
+			return existingContext, true
+		}
+	}
+}
+
+func ReserveAuthenticationRequest(
+	key string,
+	now time.Time,
+	lifetime time.Duration,
+) (*AuthenticationRequestReservation, bool) {
+	reservation := &AuthenticationRequestReservation{expiresAt: now.Add(lifetime)}
+	for {
+		current, loaded := ausfContext.authenticationRequestPool.LoadOrStore(key, reservation)
+		if !loaded {
+			return reservation, true
+		}
+
+		existing := current.(*AuthenticationRequestReservation)
+		if now.Before(existing.expiresAt) {
+			return existing, false
+		}
+		if ausfContext.authenticationRequestPool.CompareAndSwap(key, existing, reservation) {
+			return reservation, true
+		}
+	}
+}
+
+func ReleaseAuthenticationRequest(key string, reservation *AuthenticationRequestReservation) {
+	ausfContext.authenticationRequestPool.CompareAndDelete(key, reservation)
+}
+
+func CompareAndSwapAusfUeContext(expected, replacement *AusfUeContext) bool {
+	if expected.Supi != replacement.Supi {
+		return false
+	}
+	return ausfContext.UePool.CompareAndSwap(expected.Supi, expected, replacement)
 }
 
 func CheckIfAusfUeContextExists(ref string) bool {

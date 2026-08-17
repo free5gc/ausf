@@ -59,6 +59,7 @@ func InitAusfContext(context *AUSFContext) {
 	fmt.Println("ausf context = ", context)
 
 	context.EapAkaSupiImsiPrefix = configuration.EapAkaSupiImsiPrefix
+	context.AuthContextTimeout = config.GetAuthContextTimeout()
 }
 
 func AddNfServices(

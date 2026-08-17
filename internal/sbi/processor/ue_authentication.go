@@ -69,9 +69,20 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 
 	ausfCurrentContext := ausf_context.GetAusfUeContext(currentSupi)
 	servingNetworkName := ausfCurrentContext.ServingNetworkName
+	authStatus, resynced, expired := ausfCurrentContext.AuthenticationState(time.Now())
+	if expired {
+		problemDetails := models.ProblemDetails{
+			Status: http.StatusBadRequest,
+			Detail: "the authentication context has expired",
+			Cause:  "AUTHENTICATION_CONTEXT_EXPIRED",
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusBadRequest, problemDetails)
+		return
+	}
 
-	if ausfCurrentContext.AuthStatus == models.AusfUeAuthenticationAuthResult_FAILURE {
-		logger.AuthELog.Warnf("Authentication failed with status: %s", ausfCurrentContext.AuthStatus)
+	if authStatus == models.AusfUeAuthenticationAuthResult_FAILURE {
+		logger.AuthELog.Warnf("Authentication failed with status: %s", authStatus)
 		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, 0)
 		eapSession.EapPayload = eapFailPkt
 		eapSession.AuthResult = models.AusfUeAuthenticationAuthResult_FAILURE
@@ -113,6 +124,17 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 	} else if eapContent.Type != ausf_context.EAP_AKA_PRIME_TYPENUM {
 		eapOK = false
 		eapErrStr = "eap packet type error"
+	} else if eapContent.Id != ausfCurrentContext.EapID {
+		logger.AuthELog.Warnf("Ignore stale EAP response identifier %d; outstanding request identifier is %d",
+			eapContent.Id, ausfCurrentContext.EapID)
+		problemDetails := models.ProblemDetails{
+			Status: http.StatusBadRequest,
+			Detail: "EAP response identifier does not match the outstanding request",
+			Cause:  "EAP_IDENTIFIER_MISMATCH",
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusBadRequest, problemDetails)
+		return
 	} else if decodeEapAkaPrimePkt, err := decodeEapAkaPrime(eapContent.Contents); err != nil {
 		logger.AuthELog.Warnf("EAP-AKA' decode failed: %+v", err)
 		eapOK = false
@@ -157,16 +179,16 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 					c.JSON(http.StatusInternalServerError, problemDetails)
 					return
 				}
-				ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_SUCCESS
+				ausfCurrentContext.SetAuthStatus(models.AusfUeAuthenticationAuthResult_SUCCESS)
 			} else {
 				eapOK = false
 				eapErrStr = "Wrong RES value, EAP-AKA' auth failed"
 			}
 		case ausf_context.AKA_AUTHENTICATION_REJECT_SUBTYPE:
-			ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
+			ausfCurrentContext.SetAuthStatus(models.AusfUeAuthenticationAuthResult_FAILURE)
 		case ausf_context.AKA_SYNCHRONIZATION_FAILURE_SUBTYPE:
 			logger.AuthELog.Warnf("EAP-AKA' synchronziation failure")
-			if ausfCurrentContext.Resynced {
+			if resynced {
 				eapOK = false
 				eapErrStr = "2 consecutive Synch Failure, terminate authentication procedure"
 			} else {
@@ -182,12 +204,12 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 				return
 			}
 		case ausf_context.AKA_NOTIFICATION_SUBTYPE:
-			ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
+			ausfCurrentContext.SetAuthStatus(models.AusfUeAuthenticationAuthResult_FAILURE)
 		case ausf_context.AKA_CLIENT_ERROR_SUBTYPE:
 			logger.AuthELog.Warnf("EAP-AKA' failure: receive client-error")
-			ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
+			ausfCurrentContext.SetAuthStatus(models.AusfUeAuthenticationAuthResult_FAILURE)
 		default:
-			ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
+			ausfCurrentContext.SetAuthStatus(models.AusfUeAuthenticationAuthResult_FAILURE)
 		}
 	}
 
@@ -205,7 +227,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 			return
 		}
 
-		ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
+		ausfCurrentContext.SetAuthStatus(models.AusfUeAuthenticationAuthResult_FAILURE)
 		eapSession.AuthResult = models.AusfUeAuthenticationAuthResult_ONGOING
 		failEapAkaNoti := ConstructFailEapAkaNotification(eapContent.Id)
 		eapSession.EapPayload = failEapAkaNoti
@@ -214,21 +236,24 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 		linksValue := models.Link{Href: linkUrl}
 		eapSession.Links = make(map[string][]models.Link)
 		eapSession.Links["eap-session"] = []models.Link{linksValue}
-	} else if ausfCurrentContext.AuthStatus == models.AusfUeAuthenticationAuthResult_FAILURE {
-		if sendErr := p.Consumer().SendAuthResultToUDM(currentSupi, models.UdmUeauAuthType_EAP_AKA_PRIME, false,
-			servingNetworkName, ausfCurrentContext.UdmUeauUrl); sendErr != nil {
-			logger.AuthELog.Infoln(sendErr.Error())
-			var problemDetails models.ProblemDetails
-			problemDetails.Status = http.StatusInternalServerError
-			problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
-			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
-			c.JSON(http.StatusInternalServerError, problemDetails)
-			return
-		}
+	} else {
+		currentStatus, _, _ := ausfCurrentContext.AuthenticationState(time.Now())
+		if currentStatus == models.AusfUeAuthenticationAuthResult_FAILURE {
+			if sendErr := p.Consumer().SendAuthResultToUDM(currentSupi, models.UdmUeauAuthType_EAP_AKA_PRIME, false,
+				servingNetworkName, ausfCurrentContext.UdmUeauUrl); sendErr != nil {
+				logger.AuthELog.Infoln(sendErr.Error())
+				var problemDetails models.ProblemDetails
+				problemDetails.Status = http.StatusInternalServerError
+				problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
+				c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+				c.JSON(http.StatusInternalServerError, problemDetails)
+				return
+			}
 
-		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, eapPayload[1])
-		eapSession.EapPayload = eapFailPkt
-		eapSession.AuthResult = models.AusfUeAuthenticationAuthResult_FAILURE
+			eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, eapPayload[1])
+			eapSession.EapPayload = eapFailPkt
+			eapSession.AuthResult = models.AusfUeAuthenticationAuthResult_FAILURE
+		}
 	}
 
 	c.JSON(http.StatusOK, eapSession)
@@ -276,30 +301,121 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 	self := ausf_context.GetSelf()
 	authInfoReq.AusfInstanceId = self.GetSelfID()
 
-	var lastEapID uint8
-	if updateAuthenticationInfo.ResynchronizationInfo != nil {
-		logger.UeAuthLog.Warningln("Auts: ", updateAuthenticationInfo.ResynchronizationInfo.Auts)
-		if !ausf_context.CheckIfSuciSupiPairExists(supiOrSuci) {
+	resynchronizationInfo := updateAuthenticationInfo.ResynchronizationInfo
+	knownSupi := ""
+	mappingExists := ausf_context.CheckIfSuciSupiPairExists(supiOrSuci)
+	if mappingExists {
+		knownSupi = ausf_context.GetSupiFromSuciSupiMap(supiOrSuci)
+	} else if validator.IsValidSupi(supiOrSuci) {
+		knownSupi = supiOrSuci
+	}
+
+	if resynchronizationInfo != nil {
+		logger.UeAuthLog.Warningln("Auts: ", resynchronizationInfo.Auts)
+		if !mappingExists {
 			logger.UeAuthLog.Warningln("Resync failed: SUCI mapping not found for ", supiOrSuci)
 			c.JSON(http.StatusNotFound, models.ProblemDetails{Status: 404, Cause: "USER_NOT_FOUND"})
 			return
 		}
-		ausfCurrentSupi := ausf_context.GetSupiFromSuciSupiMap(supiOrSuci)
-		logger.UeAuthLog.Warningln(ausfCurrentSupi)
-		if !ausf_context.CheckIfAusfUeContextExists(ausfCurrentSupi) {
-			logger.UeAuthLog.Warningln("Resync failed: AusfUeContext not found for SUPI: ", ausfCurrentSupi)
+	}
+
+	contextExists := knownSupi != "" && ausf_context.CheckIfAusfUeContextExists(knownSupi)
+	var existingContext *ausf_context.AusfUeContext
+	now := time.Now()
+	var existingStatus models.AusfUeAuthenticationAuthResult
+	var existingResynced, existingExpired bool
+	if contextExists {
+		existingContext = ausf_context.GetAusfUeContext(knownSupi)
+		existingStatus, existingResynced, existingExpired = existingContext.AuthenticationState(now)
+	}
+	var lastEapID uint8
+	if resynchronizationInfo != nil {
+		if !contextExists {
+			logger.UeAuthLog.Warningln("Resync failed: AusfUeContext not found for SUPI: ", knownSupi)
 			c.JSON(http.StatusNotFound, models.ProblemDetails{Status: 404, Cause: "USER_NOT_FOUND"})
 			return
 		}
-		ausfCurrentContext := ausf_context.GetAusfUeContext(ausfCurrentSupi)
-		logger.UeAuthLog.Warningln(ausfCurrentContext.Rand)
-		if updateAuthenticationInfo.ResynchronizationInfo.Rand == "" {
-			updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
+		if existingStatus != models.AusfUeAuthenticationAuthResult_ONGOING {
+			problemDetails := models.ProblemDetails{
+				Title:  "Invalid authentication state",
+				Cause:  "INVALID_AUTHENTICATION_STATE",
+				Detail: "resynchronization requires an ongoing authentication context",
+				Status: http.StatusBadRequest,
+			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+			c.JSON(http.StatusBadRequest, problemDetails)
+			return
 		}
-		logger.UeAuthLog.Warningln("Rand: ", updateAuthenticationInfo.ResynchronizationInfo.Rand)
-		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
-		lastEapID = ausfCurrentContext.EapID
+		if existingExpired {
+			logger.UeAuthLog.Warnf("resynchronization context expired for SUPI %s", knownSupi)
+			problemDetails := models.ProblemDetails{
+				Title:  "Authentication context expired",
+				Cause:  "AUTHENTICATION_CONTEXT_EXPIRED",
+				Detail: "the authentication context expired before resynchronization",
+				Status: http.StatusBadRequest,
+			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+			c.JSON(http.StatusBadRequest, problemDetails)
+			return
+		}
+		if existingResynced {
+			logger.UeAuthLog.Warnf("resynchronization already performed for SUPI %s", knownSupi)
+			problemDetails := models.ProblemDetails{
+				Title:  "Resynchronization already performed",
+				Cause:  "RESYNCHRONIZATION_ALREADY_PERFORMED",
+				Detail: "the current authentication context has already been resynchronized",
+				Status: http.StatusBadRequest,
+			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+			c.JSON(http.StatusBadRequest, problemDetails)
+			return
+		}
+		logger.UeAuthLog.Warningln(existingContext.Rand)
+		if resynchronizationInfo.Rand == "" {
+			resynchronizationInfo.Rand = existingContext.Rand
+		}
+		logger.UeAuthLog.Warningln("Rand: ", resynchronizationInfo.Rand)
+		authInfoReq.ResynchronizationInfo = resynchronizationInfo
+		lastEapID = existingContext.EapID
+	} else if contextExists && existingStatus == models.AusfUeAuthenticationAuthResult_ONGOING && !existingExpired {
+		logger.UeAuthLog.Warnf("authentication already in progress for SUPI %s with status %s",
+			knownSupi, existingStatus)
+		problemDetails := models.ProblemDetails{
+			Title:  "Authentication already in progress",
+			Cause:  "AUTHENTICATION_IN_PROGRESS",
+			Detail: "an authentication procedure for this SUPI is already in progress",
+			Status: http.StatusBadRequest,
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusBadRequest, problemDetails)
+		return
 	}
+
+	reservationKey := knownSupi
+	if reservationKey == "" {
+		reservationKey = supiOrSuci
+	}
+	authContextTimeout := self.AuthContextTimeout
+	if authContextTimeout <= 0 {
+		authContextTimeout = factory.AusfDefaultAuthContextTimeout
+	}
+	reservation, reserved := ausf_context.ReserveAuthenticationRequest(
+		reservationKey,
+		now,
+		authContextTimeout,
+	)
+	if !reserved {
+		problemDetails := models.ProblemDetails{
+			Title:  "Authentication request already in progress",
+			Cause:  "AUTHENTICATION_IN_PROGRESS",
+			Detail: "an authentication request for this identity is already in progress",
+			Status: http.StatusBadRequest,
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusBadRequest, problemDetails)
+		return
+	}
+	defer ausf_context.ReleaseAuthenticationRequest(reservationKey, reservation)
 
 	udmUrl, err := p.Consumer().GetUdmUrl(self.NrfUri)
 	if err != nil {
@@ -358,12 +474,12 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 
 	ausfUeContext := ausf_context.NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
-	ausfUeContext.AuthStatus = models.AusfUeAuthenticationAuthResult_ONGOING
 	ausfUeContext.UdmUeauUrl = udmUrl
-	ausf_context.AddAusfUeContextToPool(ausfUeContext)
-
-	logger.UeAuthLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
-	ausf_context.AddSuciSupiPairToMap(supiOrSuci, ueid)
+	ausfUeContext.InitializeAuthenticationState(
+		models.AusfUeAuthenticationAuthResult_ONGOING,
+		resynchronizationInfo != nil,
+		time.Now().Add(authContextTimeout),
+	)
 
 	locationURI := self.Url + factory.AusfAuthResUriPrefix + "/ue-authentications/" + supiOrSuci
 	putLink := locationURI
@@ -524,6 +640,40 @@ func (p *Processor) UeAuthPostRequestProcedure(c *gin.Context, updateAuthenticat
 		responseBody.Links["eap-session"] = []models.Link{linksValue}
 	}
 
+	if resynchronizationInfo != nil {
+		if !ausf_context.CompareAndSwapAusfUeContext(existingContext, ausfUeContext) {
+			logger.UeAuthLog.Warnf("authentication context changed while resynchronizing SUPI %s", knownSupi)
+			problemDetails := models.ProblemDetails{
+				Title:  "Authentication context changed",
+				Cause:  "AUTHENTICATION_CONTEXT_CHANGED",
+				Detail: "the authentication context changed while resynchronization was in progress",
+				Status: http.StatusBadRequest,
+			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+			c.JSON(http.StatusBadRequest, problemDetails)
+			return
+		}
+	} else if existingContext, ok := ausf_context.AddAusfUeContextToPoolIfNoOngoing(
+		ausfUeContext,
+		time.Now(),
+	); !ok {
+		existingStatus, _, _ := existingContext.AuthenticationState(time.Now())
+		logger.UeAuthLog.Warnf("authentication already in progress for SUPI %s with status %s",
+			ueid, existingStatus)
+		problemDetails := models.ProblemDetails{
+			Title:  "Authentication already in progress",
+			Cause:  "AUTHENTICATION_IN_PROGRESS",
+			Detail: "an authentication procedure for this SUPI is already in progress",
+			Status: http.StatusBadRequest,
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusBadRequest, problemDetails)
+		return
+	}
+
+	logger.UeAuthLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
+	ausf_context.AddSuciSupiPairToMap(supiOrSuci, ueid)
+
 	responseBody.AuthType = models.AusfUeAuthenticationAuthType(authInfoResult.AuthType)
 
 	c.Header("Location", locationURI)
@@ -572,17 +722,28 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(c *gin.Context, updateConfi
 
 	ausfCurrentContext := ausf_context.GetAusfUeContext(currentSupi)
 	servingNetworkName := ausfCurrentContext.ServingNetworkName
+	_, _, expired := ausfCurrentContext.AuthenticationState(time.Now())
+	if expired {
+		problemDetails := models.ProblemDetails{
+			Status: http.StatusBadRequest,
+			Detail: "the authentication context has expired",
+			Cause:  "AUTHENTICATION_CONTEXT_EXPIRED",
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusBadRequest, problemDetails)
+		return
+	}
 
 	// Compare the received RES* with the stored XRES*
 	if constantTimeHexEqual(updateConfirmationData.ResStar, ausfCurrentContext.XresStar) {
-		ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_SUCCESS
+		ausfCurrentContext.SetAuthStatus(models.AusfUeAuthenticationAuthResult_SUCCESS)
 		confirmDataRsp.AuthResult = models.AusfUeAuthenticationAuthResult_SUCCESS
 		success = true
 		logger.Auth5gAkaLog.Infoln("5G AKA confirmation succeeded")
 		confirmDataRsp.Supi = currentSupi
 		confirmDataRsp.Kseaf = ausfCurrentContext.Kseaf
 	} else {
-		ausfCurrentContext.AuthStatus = models.AusfUeAuthenticationAuthResult_FAILURE
+		ausfCurrentContext.SetAuthStatus(models.AusfUeAuthenticationAuthResult_FAILURE)
 		confirmDataRsp.AuthResult = models.AusfUeAuthenticationAuthResult_FAILURE
 		p.logConfirmFailureAndInformUDM(ConfirmationDataResponseID, models.AusfUeAuthenticationAuthType__5_G_AKA,
 			servingNetworkName, "5G AKA confirmation failed", ausfCurrentContext.UdmUeauUrl)
