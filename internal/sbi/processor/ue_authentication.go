@@ -236,21 +236,24 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 		linksValue := models.Link{Href: linkUrl}
 		eapSession.Links = make(map[string][]models.Link)
 		eapSession.Links["eap-session"] = []models.Link{linksValue}
-	} else if currentStatus, _, _ := ausfCurrentContext.AuthenticationState(time.Now()); currentStatus == models.AusfUeAuthenticationAuthResult_FAILURE {
-		if sendErr := p.Consumer().SendAuthResultToUDM(currentSupi, models.UdmUeauAuthType_EAP_AKA_PRIME, false,
-			servingNetworkName, ausfCurrentContext.UdmUeauUrl); sendErr != nil {
-			logger.AuthELog.Infoln(sendErr.Error())
-			var problemDetails models.ProblemDetails
-			problemDetails.Status = http.StatusInternalServerError
-			problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
-			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
-			c.JSON(http.StatusInternalServerError, problemDetails)
-			return
-		}
+	} else {
+		currentStatus, _, _ := ausfCurrentContext.AuthenticationState(time.Now())
+		if currentStatus == models.AusfUeAuthenticationAuthResult_FAILURE {
+			if sendErr := p.Consumer().SendAuthResultToUDM(currentSupi, models.UdmUeauAuthType_EAP_AKA_PRIME, false,
+				servingNetworkName, ausfCurrentContext.UdmUeauUrl); sendErr != nil {
+				logger.AuthELog.Infoln(sendErr.Error())
+				var problemDetails models.ProblemDetails
+				problemDetails.Status = http.StatusInternalServerError
+				problemDetails.Cause = "UPSTREAM_SERVER_ERROR"
+				c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+				c.JSON(http.StatusInternalServerError, problemDetails)
+				return
+			}
 
-		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, eapPayload[1])
-		eapSession.EapPayload = eapFailPkt
-		eapSession.AuthResult = models.AusfUeAuthenticationAuthResult_FAILURE
+			eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, eapPayload[1])
+			eapSession.EapPayload = eapFailPkt
+			eapSession.AuthResult = models.AusfUeAuthenticationAuthResult_FAILURE
+		}
 	}
 
 	c.JSON(http.StatusOK, eapSession)
