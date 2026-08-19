@@ -2,9 +2,9 @@ package consumer
 
 import (
 	"github.com/free5gc/ausf/pkg/app"
-	Nnrf_NFDiscovery "github.com/free5gc/openapi/nrf/NFDiscovery"
-	Nnrf_NFManagement "github.com/free5gc/openapi/nrf/NFManagement"
-	Nudm_UEAuthentication "github.com/free5gc/openapi/udm/UEAuthentication"
+	Nnrf_NFDiscovery "github.com/free5gc/openapi/nrf/NFDisc"
+	Nnrf_NFManagement "github.com/free5gc/openapi/nrf/NFMgmt"
+	Nudm_UEAuthentication "github.com/free5gc/openapi/udm/UEAU"
 )
 
 type ConsumerAusf interface {

@@ -54,7 +54,7 @@ func InitAusfContext(context *AUSFContext) {
 	context.PlmnList = append(context.PlmnList, configuration.PlmnSupportList...)
 
 	// context.NfService
-	context.NfService = make(map[models.ServiceName]models.NrfNfManagementNfService)
+	context.NfService = make(map[models.Nrf_NFMgmt_ServiceName]models.Nrf_NFMgmt_NFService)
 	AddNfServices(&context.NfService, config, context)
 	fmt.Println("ausf context = ", context)
 
@@ -62,31 +62,33 @@ func InitAusfContext(context *AUSFContext) {
 }
 
 func AddNfServices(
-	serviceMap *map[models.ServiceName]models.NrfNfManagementNfService, config *factory.Config, context *AUSFContext,
+	serviceMap *map[models.Nrf_NFMgmt_ServiceName]models.Nrf_NFMgmt_NFService,
+	config *factory.Config,
+	context *AUSFContext,
 ) {
-	var nfService models.NrfNfManagementNfService
-	var ipEndPoints []models.IpEndPoint
-	var nfServiceVersions []models.NfServiceVersion
+	var nfService models.Nrf_NFMgmt_NFService
+	var ipEndPoints []models.Nrf_NFMgmt_IpEndPoint
+	var nfServiceVersions []models.Nrf_NFMgmt_NFServiceVersion
 	services := *serviceMap
 
 	// nausf-auth
 	nfService.ServiceInstanceId = context.NfId
-	nfService.ServiceName = models.ServiceName_NAUSF_AUTH
+	nfService.ServiceName = models.Nrf_NFMgmt_ServiceName_NAUSF_AUTH
 
-	var ipEndPoint models.IpEndPoint
+	var ipEndPoint models.Nrf_NFMgmt_IpEndPoint
 	ipEndPoint.Ipv4Address = context.RegisterIPv4
 	ipEndPoint.Port = int32(context.SBIPort)
 	ipEndPoints = append(ipEndPoints, ipEndPoint)
 
-	var nfServiceVersion models.NfServiceVersion
+	var nfServiceVersion models.Nrf_NFMgmt_NFServiceVersion
 	nfServiceVersion.ApiFullVersion = config.Info.Version
 	nfServiceVersion.ApiVersionInUri = "v1"
 	nfServiceVersions = append(nfServiceVersions, nfServiceVersion)
 
 	nfService.Scheme = context.UriScheme
-	nfService.NfServiceStatus = models.NfServiceStatus_REGISTERED
+	nfService.NfServiceStatus = models.Nrf_NFMgmt_NFServiceStatus_REGISTERED
 
 	nfService.IpEndPoints = ipEndPoints
 	nfService.Versions = nfServiceVersions
-	services[models.ServiceName_NAUSF_AUTH] = nfService
+	services[models.Nrf_NFMgmt_ServiceName_NAUSF_AUTH] = nfService
 }

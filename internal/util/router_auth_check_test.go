@@ -23,7 +23,7 @@ func newMockAUSFContext() *mockAUSFContext {
 	return &mockAUSFContext{}
 }
 
-func (m *mockAUSFContext) AuthorizationCheck(token string, serviceName models.ServiceName) error {
+func (m *mockAUSFContext) AuthorizationCheck(token string, serviceName models.Nrf_NFMgmt_ServiceName) error {
 	if token == Valid {
 		return nil
 	}
@@ -84,7 +84,7 @@ func TestRouterAuthorizationCheck_Check(t *testing.T) {
 			}
 			c.Request.Header.Set("Authorization", tt.args.token)
 
-			rac := NewRouterAuthorizationCheck(models.ServiceName("testService"))
+			rac := NewRouterAuthorizationCheck(models.Nrf_NFMgmt_ServiceName("testService"))
 			rac.Check(c, newMockAUSFContext())
 			if w.Code != tt.want.statusCode {
 				t.Errorf("StatusCode should be %d, but got %d", tt.want.statusCode, w.Code)

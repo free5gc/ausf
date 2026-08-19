@@ -12,8 +12,8 @@ import (
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/models"
-	Nnrf_NFDiscovery "github.com/free5gc/openapi/nrf/NFDiscovery"
-	Nnrf_NFManagement "github.com/free5gc/openapi/nrf/NFManagement"
+	Nnrf_NFDiscovery "github.com/free5gc/openapi/nrf/NFDisc"
+	Nnrf_NFManagement "github.com/free5gc/openapi/nrf/NFMgmt"
 	sbi_metrics "github.com/free5gc/util/metrics/sbi"
 )
 
@@ -75,10 +75,10 @@ func (s *nnrfService) getNFDiscClient(uri string) *Nnrf_NFDiscovery.APIClient {
 
 func (s *nnrfService) SendSearchNFInstances(
 	nrfUri string, targetNfType,
-	requestNfType models.NrfNfManagementNfType,
+	requestNfType models.Nrf_NFMgmt_NFType,
 	param Nnrf_NFDiscovery.SearchNFInstancesRequest,
 ) (
-	*models.SearchResult, error,
+	*models.Nrf_NFDisc_SearchResult, error,
 ) {
 	// Set client and set url
 	client := s.getNFDiscClient(nrfUri)
@@ -86,7 +86,10 @@ func (s *nnrfService) SendSearchNFInstances(
 		return nil, openapi.ReportError("nrf not found")
 	}
 
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_DISC, models.NrfNfManagementNfType_NRF)
+	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(
+		models.Nrf_NFMgmt_ServiceName_NNRF_DISC,
+		models.Nrf_NFMgmt_NFType_NRF,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -98,14 +101,16 @@ func (s *nnrfService) SendSearchNFInstances(
 		return nil, err
 	}
 
-	result := res.SearchResult
-	return &result, err
+	return res.Nrf_NFDisc_SearchResult, err
 }
 
 func (s *nnrfService) SendDeregisterNFInstance() (*models.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("[AUSF] Send Deregister NFInstance")
 
-	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(models.ServiceName_NNRF_NFM, models.NrfNfManagementNfType_NRF)
+	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(
+		models.Nrf_NFMgmt_ServiceName_NNRF_NFM,
+		models.Nrf_NFMgmt_NFType_NRF,
+	)
 	if err != nil {
 		return pd, err
 	}
@@ -120,7 +125,7 @@ func (s *nnrfService) SendDeregisterNFInstance() (*models.ProblemDetails, error)
 	if apiErr, ok := err.(openapi.GenericOpenAPIError); ok {
 		// API error
 		if deregNfError, okDeg := apiErr.Model().(Nnrf_NFManagement.DeregisterNFInstanceError); okDeg {
-			return &deregNfError.ProblemDetails, err
+			return deregNfError.ProblemDetails, err
 		}
 		return nil, err
 	}
@@ -137,11 +142,11 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 		return "", "", errors.Wrap(err, "RegisterNFInstance buildNfProfile()")
 	}
 
-	var nf models.NrfNfManagementNfProfile
+	var nf models.Nrf_NFMgmt_NFProfile
 	var res *Nnrf_NFManagement.RegisterNFInstanceResponse
 	registerNFInstanceRequest := &Nnrf_NFManagement.RegisterNFInstanceRequest{
-		NfInstanceID:             &ausfContext.NfId,
-		NrfNfManagementNfProfile: &nfProfile,
+		NfInstanceID: &ausfContext.NfId,
+		RequestBody:  &nfProfile,
 	}
 	for {
 		select {
@@ -155,7 +160,9 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 			time.Sleep(2 * time.Second)
 			continue
 		}
-		nf = res.NrfNfManagementNfProfile
+		if res.Nrf_NFMgmt_NFProfile != nil {
+			nf = *res.Nrf_NFMgmt_NFProfile
+		}
 
 		// http.StatusOK
 		if res.Location == "" {
@@ -168,9 +175,9 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 			retrieveNfInstanceID = resourceUri[strings.LastIndex(resourceUri, "/")+1:]
 
 			oauth2 := false
-			if nf.CustomInfo != nil {
-				v, ok := nf.CustomInfo["oauth2"].(bool)
-				if ok {
+			if customInfo, ok := nf.CustomInfo.(map[string]interface{}); ok {
+				v, isBool := customInfo["oauth2"].(bool)
+				if isBool {
 					oauth2 = v
 					logger.MainLog.Infoln("OAuth2 setting receive from NRF:", oauth2)
 				}
@@ -187,22 +194,22 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context) (
 }
 
 func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
-	profile models.NrfNfManagementNfProfile, err error,
+	profile models.Nrf_NFMgmt_NFProfile, err error,
 ) {
 	profile.NfInstanceId = ausfContext.NfId
-	profile.NfType = models.NrfNfManagementNfType_AUSF
-	profile.NfStatus = models.NrfNfManagementNfStatus_REGISTERED
+	profile.NfType = models.Nrf_NFMgmt_NFType_AUSF
+	profile.NfStatus = models.Nrf_NFMgmt_NFStatus_REGISTERED
 	profile.Ipv4Addresses = append(profile.Ipv4Addresses, ausfContext.RegisterIPv4)
-	services := []models.NrfNfManagementNfService{}
+	services := []models.Nrf_NFMgmt_NFService{}
 	for _, nfService := range ausfContext.NfService {
 		services = append(services, nfService)
 	}
 	if len(services) > 0 {
 		profile.NfServices = services
 	}
-	profile.AusfInfo = &models.AusfInfo{
+	profile.AusfInfo = &models.Nrf_NFMgmt_AusfInfo{
 		// Todo
-		// SupiRanges: &[]models.SupiRange{
+		// SupiRanges: &[]models.Nrf_NFMgmt_SupiRange{
 		// 	{
 		// 		//from TS 29.510 6.1.6.2.9 example2
 		//		//no need to set supirange in this moment 2019/10/4
@@ -216,24 +223,24 @@ func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
 }
 
 func (s *nnrfService) GetUdmUrl(nrfUri string) (string, error) {
-	targetNfType := models.NrfNfManagementNfType_UDM
-	requestNfType := models.NrfNfManagementNfType_AUSF
+	targetNfType := models.Nrf_NFMgmt_NFType_UDM
+	requestNfType := models.Nrf_NFMgmt_NFType_AUSF
 	nfDiscoverParam := Nnrf_NFDiscovery.SearchNFInstancesRequest{
 		RequesterNfType: &requestNfType,
 		TargetNfType:    &targetNfType,
-		ServiceNames:    []models.ServiceName{models.ServiceName_NUDM_UEAU},
+		ServiceNames:    []models.Nrf_NFMgmt_ServiceName{models.Nrf_NFMgmt_ServiceName_NUDM_UEAU},
 	}
 	res, err := s.SendSearchNFInstances(
 		nrfUri,
-		models.NrfNfManagementNfType_UDM,
-		models.NrfNfManagementNfType_AUSF,
+		models.Nrf_NFMgmt_NFType_UDM,
+		models.Nrf_NFMgmt_NFType_AUSF,
 		nfDiscoverParam,
 	)
 	if err != nil {
 		return "", err
 	}
 
-	_, udmUrl, err := openapi.GetServiceNfProfileAndUri(res.NfInstances, models.ServiceName_NUDM_UEAU)
+	_, udmUrl, err := openapi.GetServiceNfProfileAndUri(res.NfInstances, models.Nrf_NFMgmt_ServiceName_NUDM_UEAU)
 	if err != nil {
 		return "", err
 	}
