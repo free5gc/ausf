@@ -226,6 +226,7 @@ func (c *AUSFContext) tokenRequestForNFInstance(serviceName models.Nrf_NFMgmt_Se
 func (c *AUSFContext) SetOAuth2Required(required bool) error {
 	if !required {
 		c.OAuth2Required = false
+		c.NrfNfInstanceID = ""
 		return nil
 	}
 	if strings.TrimSpace(c.NrfCertPem) == "" {
@@ -234,9 +235,11 @@ func (c *AUSFContext) SetOAuth2Required(required bool) error {
 	if strings.TrimSpace(c.NrfUri) == "" {
 		return errors.New("OAuth2 enabled but NRF URI is empty")
 	}
-	if err := uuid.Validate(c.NrfNfInstanceID); err != nil {
-		return errors.Wrap(err, "OAuth2 enabled but trusted NRF instance ID is invalid")
+	nrfNfInstanceID, err := oauth.NFInstanceIDFromCertificate(c.NrfCertPem)
+	if err != nil {
+		return errors.Wrap(err, "derive trusted NRF instance ID from certificate")
 	}
+	c.NrfNfInstanceID = nrfNfInstanceID
 	c.OAuth2Required = true
 	return nil
 }
