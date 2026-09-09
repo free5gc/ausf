@@ -102,7 +102,7 @@ func (s *Server) Run(traceCtx context.Context, wg *sync.WaitGroup) error {
 	var err error
 	_, s.Context().NfId, err = s.Consumer().RegisterNFInstance(context.Background())
 	if err != nil {
-		logger.InitLog.Errorf("AUSF register to NRF Error[%s]", err.Error())
+		return err
 	}
 
 	wg.Add(1)
