@@ -115,7 +115,8 @@ func (s *nnrfService) SendSearchNFInstances(
 func (s *nnrfService) SendDeregisterNFInstance() (*models.ProblemDetails, error) {
 	logger.ConsumerLog.Infof("[AUSF] Send Deregister NFInstance")
 
-	ctx, pd, err := ausf_context.GetSelf().GetTokenCtx(
+	ausfContext := s.consumer.Context()
+	ctx, pd, err := ausfContext.GetTokenCtx(
 		models.Nrf_NFMgmt_ServiceName_NNRF_NFM,
 		models.Nrf_NFMgmt_NFType_NRF,
 	)
@@ -123,14 +124,18 @@ func (s *nnrfService) SendDeregisterNFInstance() (*models.ProblemDetails, error)
 		return pd, err
 	}
 
-	ausfContext := s.consumer.Context()
 	client := s.getNFManagementClient(ausfContext.NrfUri)
+	if client == nil {
+		return nil, openapi.ReportError("nrf not found")
+	}
+
 	request := &Nnrf_NFManagement.DeregisterNFInstanceRequest{
 		NfInstanceID: &ausfContext.NfId,
 	}
 
 	_, err = client.NFInstanceIDDocumentApi.DeregisterNFInstance(ctx, request)
-	if apiErr, ok := err.(openapi.GenericOpenAPIError); ok {
+	var apiErr openapi.GenericOpenAPIError
+	if errors.As(err, &apiErr) {
 		// API error
 		if deregNfError, okDeg := apiErr.Model().(Nnrf_NFManagement.DeregisterNFInstanceError); okDeg {
 			return deregNfError.ProblemDetails, err
