@@ -303,6 +303,23 @@ func (p *Processor) UeAuthPostRequestProcedure(
 		if updateAuthenticationInfo.ResynchronizationInfo.Rand == "" {
 			updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
 		}
+		// TS 33.501 clause 6.1.3.3.2: the resynchronisation is for the RAND sent
+		// to the UE in the preceding Authentication Request. Only accept the RAND
+		// and serving network of this UE's authentication context, so that the
+		// UDM never resets SQN from an AUTS bound to another challenge.
+		if !strings.EqualFold(updateAuthenticationInfo.ResynchronizationInfo.Rand, ausfCurrentContext.Rand) ||
+			snName != ausfCurrentContext.ServingNetworkName {
+			logger.UeAuthLog.Warnf("Resync rejected: RAND or serving network does not match the "+
+				"authentication context of SUPI %s", ausfCurrentSupi)
+			problemDetails := models.ProblemDetails{
+				Status: http.StatusForbidden,
+				Cause:  "AUTHENTICATION_REJECTED",
+				Detail: "resynchronizationInfo does not match the authentication context",
+			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+			c.JSON(http.StatusForbidden, problemDetails)
+			return
+		}
 		logger.UeAuthLog.Warningln("Rand: ", updateAuthenticationInfo.ResynchronizationInfo.Rand)
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
 		lastEapID = ausfCurrentContext.EapID
