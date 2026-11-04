@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -172,11 +173,10 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context, applyOAuth2 bool) 
 	for ctx.Err() == nil {
 		res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(ctx, registerNFInstanceRequest)
 		if err == nil && res != nil {
-			var nf models.Nrf_NFMgmt_NFProfile
-			if res.Nrf_NFMgmt_NFProfile != nil {
-				nf = *res.Nrf_NFMgmt_NFProfile
+			if res.Nrf_NFMgmt_NFProfile == nil {
+				return errors.New("invalid NFRegister response: NFProfile is missing")
 			}
-			return s.processRegisterResponse(ausfContext, nf, applyOAuth2)
+			return s.processRegisterResponse(ausfContext, *res.Nrf_NFMgmt_NFProfile, applyOAuth2)
 		}
 		logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 		select {
@@ -194,10 +194,28 @@ func (s *nnrfService) processRegisterResponse(
 	nf models.Nrf_NFMgmt_NFProfile,
 	applyOAuth2 bool,
 ) error {
+	if nf.NfInstanceId == "" {
+		return errors.New("invalid NFRegister response: nfInstanceId is missing")
+	}
+	if !strings.EqualFold(nf.NfInstanceId, ausfContext.NfId) {
+		return errors.New("invalid NFRegister response: nfInstanceId does not match AUSF")
+	}
+	if nf.NfType != models.Nrf_NFMgmt_NFType_AUSF {
+		return errors.New("invalid NFRegister response: nfType must be AUSF")
+	}
+	// NFStatus is extensible in TS 29.510; do not reject future nonempty values.
+	if strings.TrimSpace(string(nf.NfStatus)) == "" {
+		return errors.New("invalid NFRegister response: nfStatus is empty")
+	}
+
 	oauth2 := false
 	if customInfo, ok := nf.CustomInfo.(map[string]interface{}); ok {
-		if v, isBool := customInfo["oauth2"].(bool); isBool {
-			oauth2 = v
+		if value, present := customInfo["oauth2"]; present {
+			var isBool bool
+			oauth2, isBool = value.(bool)
+			if !isBool {
+				return errors.New("invalid NFRegister response: customInfo.oauth2 must be boolean")
+			}
 			logger.MainLog.Infoln("OAuth2 setting receive from NRF:", oauth2)
 		}
 	}
@@ -291,7 +309,7 @@ func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
 		// 	},
 		// },
 	}
-	return
+	return profile, nil
 }
 
 func (s *nnrfService) GetUdmUrl(nrfUri string) (string, error) {

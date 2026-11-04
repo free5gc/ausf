@@ -6,13 +6,16 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -422,5 +425,222 @@ func TestRegisterNFInstance(t *testing.T) {
 				require.Empty(t, consumer.Context().NrfNfInstanceID)
 			}
 		})
+	}
+}
+
+func TestRegisterNFInstanceRejectsInvalidResponse(t *testing.T) {
+	tests := []struct {
+		name    string
+		rawBody string
+		change  func(map[string]any)
+		wantErr string
+	}{
+		{name: "empty object", rawBody: `{}`, wantErr: "nfInstanceId is missing"},
+		{name: "null profile", rawBody: `null`, wantErr: "nfInstanceId is missing"},
+		{
+			name:    "missing instance ID",
+			change:  func(body map[string]any) { delete(body, "nfInstanceId") },
+			wantErr: "nfInstanceId is missing",
+		},
+		{
+			name: "different instance ID",
+			change: func(body map[string]any) {
+				body["nfInstanceId"] = "73beea45-663c-4bb7-8ad7-c9a2c488dc17"
+			},
+			wantErr: "nfInstanceId does not match AUSF",
+		},
+		{
+			name:    "missing NF type",
+			change:  func(body map[string]any) { delete(body, "nfType") },
+			wantErr: "nfType must be AUSF",
+		},
+		{
+			name:    "different NF type",
+			change:  func(body map[string]any) { body["nfType"] = "AMF" },
+			wantErr: "nfType must be AUSF",
+		},
+		{
+			name:    "missing NF status",
+			change:  func(body map[string]any) { delete(body, "nfStatus") },
+			wantErr: "nfStatus is empty",
+		},
+		{
+			name:    "empty NF status",
+			change:  func(body map[string]any) { body["nfStatus"] = "" },
+			wantErr: "nfStatus is empty",
+		},
+		{
+			name:    "whitespace NF status",
+			change:  func(body map[string]any) { body["nfStatus"] = " \t\n " },
+			wantErr: "nfStatus is empty",
+		},
+		{
+			name:    "null NF status",
+			change:  func(body map[string]any) { body["nfStatus"] = nil },
+			wantErr: "nfStatus is empty",
+		},
+		{
+			name:    "null OAuth setting",
+			change:  func(body map[string]any) { body["customInfo"] = map[string]any{"oauth2": nil} },
+			wantErr: "customInfo.oauth2 must be boolean",
+		},
+		{
+			name:    "string OAuth setting",
+			change:  func(body map[string]any) { body["customInfo"] = map[string]any{"oauth2": "true"} },
+			wantErr: "customInfo.oauth2 must be boolean",
+		},
+		{
+			name:    "numeric OAuth setting",
+			change:  func(body map[string]any) { body["customInfo"] = map[string]any{"oauth2": 0} },
+			wantErr: "customInfo.oauth2 must be boolean",
+		},
+		{
+			name: "object OAuth setting",
+			change: func(body map[string]any) {
+				body["customInfo"] = map[string]any{"oauth2": map[string]any{}}
+			},
+			wantErr: "customInfo.oauth2 must be boolean",
+		},
+	}
+	for _, status := range []int{http.StatusOK, http.StatusCreated} {
+		for _, applyOAuth2 := range []bool{true, false} {
+			for _, initialOAuth2 := range []bool{true, false} {
+				for _, tt := range tests {
+					name := fmt.Sprintf("%d/apply_%t/initial_%t/%s", status, applyOAuth2, initialOAuth2, tt.name)
+					t.Run(name, func(t *testing.T) {
+						consumer := newNrfTestConsumer(t)
+						self := consumer.Context()
+						self.OAuth2Required = initialOAuth2
+						if initialOAuth2 {
+							self.NrfNfInstanceID = "73beea45-663c-4bb7-8ad7-c9a2c488dc17"
+						}
+						initialNrfID := self.NrfNfInstanceID
+						consumer.heartbeatTimer = 30
+						body := tt.rawBody
+						if body == "" {
+							profile := nfProfileJSON(15, map[string]any{"oauth2": false})
+							tt.change(profile)
+							encoded, err := json.Marshal(profile)
+							require.NoError(t, err)
+							body = string(encoded)
+						}
+						gock.New(testNrfUri).Put(testNfIdPath).Reply(status).
+							SetHeader("Content-Type", "application/json").
+							SetHeader("Location", testNrfUri+testNfIdPath).BodyString(body)
+
+						err := consumer.RegisterNFInstance(testCtx(t), applyOAuth2)
+						require.ErrorContains(t, err, tt.wantErr)
+						require.NotErrorIs(t, err, context.DeadlineExceeded, "validation must not enter the retry loop")
+						require.True(t, gock.IsDone())
+						require.Equal(t, int32(30), consumer.heartbeatTimer)
+						require.Equal(t, initialOAuth2, self.OAuth2Required)
+						require.Equal(t, initialNrfID, self.NrfNfInstanceID)
+						require.Equal(t, testNfId, self.NfId)
+					})
+				}
+			}
+		}
+	}
+}
+
+func TestRegisterNFInstanceAcceptsCompatibleResponse(t *testing.T) {
+	const testNrfID = "73beea45-663c-4bb7-8ad7-c9a2c488dc17"
+	certPath := newNrfTestCertificate(t, testNrfID)
+	type testCase struct {
+		name          string
+		customInfo    map[string]any
+		change        func(map[string]any)
+		applyOAuth2   bool
+		initialOAuth2 bool
+		wantOAuth2    bool
+		wantTimer     int32
+	}
+	tests := []testCase{
+		{
+			name: "enable OAuth", customInfo: map[string]any{"oauth2": true},
+			applyOAuth2: true, wantOAuth2: true, wantTimer: 15,
+		},
+		{
+			name: "explicitly disable OAuth without certificate", customInfo: map[string]any{"oauth2": false},
+			applyOAuth2: true, initialOAuth2: true, wantTimer: 15,
+		},
+		{
+			name:        "missing customInfo preserves legacy default",
+			applyOAuth2: true, initialOAuth2: true, wantTimer: 15,
+		},
+		{
+			name: "customInfo without OAuth setting", customInfo: map[string]any{"vendor": "example"},
+			applyOAuth2: true, wantTimer: 15,
+		},
+		{
+			name: "re-registration preserves enabled OAuth", customInfo: map[string]any{"oauth2": false},
+			initialOAuth2: true, wantOAuth2: true, wantTimer: 15,
+		},
+		{
+			name: "re-registration preserves disabled OAuth", customInfo: map[string]any{"oauth2": true},
+			wantTimer: 15,
+		},
+		{
+			name:          "re-registration without customInfo preserves enabled OAuth",
+			initialOAuth2: true, wantOAuth2: true, wantTimer: 15,
+		},
+		{
+			name:        "uppercase UUID represents the same instance",
+			change:      func(body map[string]any) { body["nfInstanceId"] = strings.ToUpper(testNfId) },
+			applyOAuth2: true, wantTimer: 15,
+		},
+		{
+			name: "mandatory fields in profile changes response",
+			change: func(body map[string]any) {
+				delete(body, "heartBeatTimer")
+				body["nfProfileChangesInd"] = true
+			},
+			applyOAuth2: true,
+		},
+	}
+	for _, status := range []models.Nrf_NFMgmt_NFStatus{
+		models.Nrf_NFMgmt_NFStatus_REGISTERED,
+		models.Nrf_NFMgmt_NFStatus_SUSPENDED,
+		models.Nrf_NFMgmt_NFStatus_UNDISCOVERABLE,
+		"FUTURE_STATUS",
+	} {
+		tests = append(tests, testCase{
+			name:        "NF status " + string(status),
+			change:      func(body map[string]any) { body["nfStatus"] = status },
+			applyOAuth2: true, wantTimer: 15,
+		})
+	}
+	for _, status := range []int{http.StatusOK, http.StatusCreated} {
+		for _, tt := range tests {
+			t.Run(fmt.Sprintf("%d/%s", status, tt.name), func(t *testing.T) {
+				consumer := newNrfTestConsumer(t)
+				self := consumer.Context()
+				self.OAuth2Required = tt.initialOAuth2
+				if tt.initialOAuth2 {
+					self.NrfNfInstanceID = testNrfID
+				}
+				if tt.applyOAuth2 && tt.wantOAuth2 {
+					self.NrfCertPem = certPath
+				}
+				consumer.heartbeatTimer = 30
+				body := nfProfileJSON(15, tt.customInfo)
+				if tt.change != nil {
+					tt.change(body)
+				}
+				gock.New(testNrfUri).Put(testNfIdPath).Reply(status).
+					SetHeader("Location", testNrfUri+testNfIdPath).JSON(body)
+
+				require.NoError(t, consumer.RegisterNFInstance(testCtx(t), tt.applyOAuth2))
+				require.True(t, gock.IsDone())
+				require.Equal(t, tt.wantTimer, consumer.heartbeatTimer)
+				require.Equal(t, tt.wantOAuth2, self.OAuth2Required)
+				if tt.wantOAuth2 {
+					require.Equal(t, testNrfID, self.NrfNfInstanceID)
+				} else {
+					require.Empty(t, self.NrfNfInstanceID)
+				}
+				require.Equal(t, testNfId, self.NfId)
+			})
+		}
 	}
 }
