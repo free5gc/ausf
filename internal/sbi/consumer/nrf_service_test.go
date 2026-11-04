@@ -2,8 +2,17 @@ package consumer
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -297,22 +306,66 @@ func TestRegisterNFInstanceStopsOnCancel(t *testing.T) {
 	})
 }
 
+func newNrfTestCertificate(t *testing.T, nfInstanceID string) string {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "NRF"},
+		DNSNames:     []string{"NRF"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	if nfInstanceID != "" {
+		uri, parseErr := url.Parse("urn:uuid:" + nfInstanceID)
+		require.NoError(t, parseErr)
+		template.URIs = []*url.URL{uri}
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+	certPath := filepath.Join(t.TempDir(), "nrf.pem")
+	err = os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600)
+	require.NoError(t, err)
+	return certPath
+}
+
 func TestRegisterNFInstance(t *testing.T) {
+	const testNrfID = "73beea45-663c-4bb7-8ad7-c9a2c488dc17"
+
 	tests := []struct {
-		name        string
-		status      int
-		body        map[string]any
-		applyOAuth2 bool
-		wantTimer   int32
-		wantOAuth2  bool
+		name         string
+		status       int
+		body         map[string]any
+		applyOAuth2  bool
+		withNrfCert  bool
+		nrfCertID    string
+		initialTimer int32
+		wantTimer    int32
+		wantOAuth2   bool
+		wantErr      string
 	}{
 		{
 			name:        "200 adopts the returned timer",
 			status:      http.StatusOK,
 			body:        nfProfileJSON(15, map[string]any{"oauth2": true}),
 			applyOAuth2: true,
+			withNrfCert: true,
+			nrfCertID:   testNrfID,
 			wantTimer:   15,
 			wantOAuth2:  true,
+		},
+		{
+			name:         "OAuth certificate without URI SAN preserves the heartbeat timer",
+			status:       http.StatusOK,
+			body:         nfProfileJSON(15, map[string]any{"oauth2": true}),
+			applyOAuth2:  true,
+			withNrfCert:  true,
+			initialTimer: 30,
+			wantTimer:    30,
+			wantErr:      "certificate does not contain an NF instance urn:uuid URI SAN",
 		},
 		{
 			name:      "201 adopts the returned timer",
@@ -336,15 +389,23 @@ func TestRegisterNFInstance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			consumer := newNrfTestConsumer(t)
+			consumer.heartbeatTimer = tt.initialTimer
+			if tt.withNrfCert {
+				consumer.Context().NrfCertPem = newNrfTestCertificate(t, tt.nrfCertID)
+			}
 
 			gock.New(testNrfUri).
 				Put(testNfIdPath).
 				Reply(tt.status).
 				JSON(tt.body)
 
-			if err := consumer.RegisterNFInstance(testCtx(t), tt.applyOAuth2); err != nil {
-				t.Fatalf("RegisterNFInstance: %v", err)
+			err := consumer.RegisterNFInstance(testCtx(t), tt.applyOAuth2)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
 			}
+			require.True(t, gock.IsDone(), "expected the NFRegister PUT to be consumed")
 			// The NF picks its own instance ID, the NRF only echoes it back.
 			if got := consumer.Context().NfId; got != testNfId {
 				t.Errorf("NfId = %q, want %q", got, testNfId)
@@ -354,6 +415,11 @@ func TestRegisterNFInstance(t *testing.T) {
 			}
 			if got := consumer.Context().OAuth2Required; got != tt.wantOAuth2 {
 				t.Errorf("OAuth2Required = %v, want %v", got, tt.wantOAuth2)
+			}
+			if tt.wantOAuth2 {
+				require.Equal(t, testNrfID, consumer.Context().NrfNfInstanceID)
+			} else {
+				require.Empty(t, consumer.Context().NrfNfInstanceID)
 			}
 		})
 	}
