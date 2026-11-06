@@ -125,6 +125,26 @@ func AddAusfUeContextToPool(ausfUeContext *AusfUeContext) {
 	ausfContext.UePool.Store(ausfUeContext.Supi, ausfUeContext)
 }
 
+// RemoveUEAuthenticationContext removes the security context and all SUPI/SUCI
+// aliases referring to it. Deregister is addressed by SUPI, not by authCtxId.
+func (c *AUSFContext) RemoveUEAuthenticationContext(supi string) bool {
+	// Find and remove the UE authentication context by SUPI.
+	// Return false if the context does not exist.
+	if _, found := c.UePool.LoadAndDelete(supi); !found {
+		return false
+	}
+
+	// Iterate through all SUCI-to-SUPI mappings.
+	c.suciSupiMap.Range(func(key, value any) bool {
+		if pair, ok := value.(*SuciSupiMap); ok && pair.Supi == supi {
+			c.suciSupiMap.CompareAndDelete(key, value)
+		}
+		return true
+	})
+
+	return true
+}
+
 func CheckIfAusfUeContextExists(ref string) bool {
 	_, ok := ausfContext.UePool.Load(ref)
 	return ok
