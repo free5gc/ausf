@@ -187,13 +187,16 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context, applyOAuth2 bool) 
 	return fmt.Errorf("NFRegister aborted: %w (last error: %v)", ctx.Err(), err)
 }
 
-// processRegisterResponse adopts what the NRF answered to the NFRegister PUT: the
-// heartbeat interval and the oauth2 custom info.
+// processRegisterResponse validates the NRF registration response,
+// applies OAuth settings only when requested, and updates the heartbeat
+// interval only after validation and OAuth initialization succeed.
 func (s *nnrfService) processRegisterResponse(
 	ausfContext *ausf_context.AUSFContext,
 	nf models.Nrf_NFMgmt_NFProfile,
 	applyOAuth2 bool,
 ) error {
+	// Validate the returned profile before applying registration state.
+	// Otherwise, an empty profile could be mistaken for OAuth being disabled.
 	if nf.NfInstanceId == "" {
 		return errors.New("invalid NFRegister response: nfInstanceId is missing")
 	}
@@ -208,6 +211,8 @@ func (s *nnrfService) processRegisterResponse(
 		return errors.New("invalid NFRegister response: nfStatus is empty")
 	}
 
+	// Keep the legacy OAuth-disabled default when the setting is absent.
+	// Reject an explicitly supplied value unless it is boolean.
 	oauth2 := false
 	if customInfo, ok := nf.CustomInfo.(map[string]interface{}); ok {
 		if value, present := customInfo["oauth2"]; present {

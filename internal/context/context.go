@@ -235,6 +235,8 @@ func (c *AUSFContext) SetOAuth2Required(required bool) error {
 	if strings.TrimSpace(c.NrfUri) == "" {
 		return errors.New("OAuth2 enabled but NRF URI is empty")
 	}
+	// Derive the expected NRF identity from the configured certificate.
+	// Commit the new OAuth state only after identity parsing succeeds.
 	nrfNfInstanceID, err := oauth.NFInstanceIDFromCertificate(c.NrfCertPem)
 	if err != nil {
 		return errors.Wrap(err, "derive trusted NRF instance ID from certificate")
@@ -251,6 +253,9 @@ func (c *AUSFContext) AuthorizationCheck(token string, serviceName models.Nrf_NF
 	}
 
 	logger.UtilLog.Debugf("AUSFContext::AuthorizationCheck: token[%s] serviceName[%s]\n", token, serviceName)
+	// Use the certificate-derived NRF ID as the expected issuer.
+	// Accept an audience matching either this AUSF instance or the AUSF type;
+	// both accepted identities come from local state.
 	return oauth.VerifyOAuth(token, string(serviceName), oauth.AudiencePolicy{
 		NFInstanceID: c.NfId,
 		NFType:       models.Nrf_NFMgmt_NFType_AUSF,
