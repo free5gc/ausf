@@ -69,14 +69,16 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 	der, err := x509.CreateCertificate(rand.Reader, cert, cert, &key.PublicKey, key)
 	require.NoError(t, err)
 	certPath := filepath.Join(t.TempDir(), "nrf.pem")
-	require.NoError(t, os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0600))
+	require.NoError(t, os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600))
 	self := ausf_context.GetSelf()
-	id, nrfURI, certPEM, nrfInstanceID, required := self.NfId, self.NrfUri, self.NrfCertPem, self.NrfNfInstanceID, self.OAuth2Required
+	id, nrfURI, certPEM := self.NfId, self.NrfUri, self.NrfCertPem
+	nrfInstanceID, required := self.NrfNfInstanceID, self.OAuth2Required
 	previousConfig := factory.AusfConfig
 	t.Cleanup(func() {
 		self.RemoveUEAuthenticationContext(supi)
 		self.RemoveUEAuthenticationContext(otherSUPI)
-		self.NfId, self.NrfUri, self.NrfCertPem, self.NrfNfInstanceID, self.OAuth2Required = id, nrfURI, certPEM, nrfInstanceID, required
+		self.NfId, self.NrfUri, self.NrfCertPem = id, nrfURI, certPEM
+		self.NrfNfInstanceID, self.OAuth2Required = nrfInstanceID, required
 		factory.AusfConfig = previousConfig
 	})
 	self.NfId, self.NrfUri, self.NrfCertPem = ausfID, "https://nrf.invalid", certPath
@@ -99,7 +101,11 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 	}{
 		{name: "valid instance audience", want: 204},
 		{name: "valid type audience", change: func(c *deregisterClaims) { c.Audience = jwt.ClaimStrings{"AUSF"} }, want: 204},
-		{name: "scope among multiple services", change: func(c *deregisterClaims) { c.Scope = "nnrf-disc nausf-auth" }, want: 204},
+		{
+			name:   "scope among multiple services",
+			change: func(c *deregisterClaims) { c.Scope = "nnrf-disc nausf-auth" },
+			want:   204,
+		},
 		{name: "missing token", header: "missing", want: 401},
 		{name: "malformed token", header: "Bearer invalid", want: 401},
 		{name: "wrong signature", badKey: true, want: 401},
@@ -107,7 +113,13 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 		{name: "wrong audience", change: func(c *deregisterClaims) { c.Audience = jwt.ClaimStrings{"UDM"} }, want: 401},
 		{name: "wrong scope", change: func(c *deregisterClaims) { c.Scope = "nudm-ueau" }, want: 401},
 		{name: "scope substring", change: func(c *deregisterClaims) { c.Scope = "nausf-auth-extra" }, want: 401},
-		{name: "expired token", change: func(c *deregisterClaims) { c.ExpiresAt = jwt.NewNumericDate(time.Now().Add(-time.Hour)) }, want: 401},
+		{
+			name: "expired token",
+			change: func(c *deregisterClaims) {
+				c.ExpiresAt = jwt.NewNumericDate(time.Now().Add(-time.Hour))
+			},
+			want: 401,
+		},
 		{name: "missing expiration", change: func(c *deregisterClaims) { c.ExpiresAt = nil }, want: 401},
 		{name: "malformed body", body: "{", want: 400, cause: "INVALID_MSG_FORMAT"},
 		{name: "missing SUPI", body: "{}", want: 400, cause: "MANDATORY_IE_MISSING"},
@@ -142,7 +154,7 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 			if body == "" {
 				body = `{"supi":"` + supi + `"}`
 			}
-			request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path, strings.NewReader(body))
 			request.Header.Set("Content-Type", "application/json")
 			if header != "missing" {
 				request.Header.Set("Authorization", header)
@@ -161,7 +173,7 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 			}
 			if tt.want == 204 {
 				require.Empty(t, response.Body.String())
-				retry := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+				retry := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path, strings.NewReader(body))
 				retry.Header = request.Header.Clone()
 				repeat := httptest.NewRecorder()
 				router.ServeHTTP(repeat, retry)
@@ -184,7 +196,7 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 		{http.MethodPut, "/nausf-auth/v1/ue-authentications/example/5g-aka-confirmation"},
 	} {
 		for _, authorized := range []bool{true, false} {
-			request := httptest.NewRequest(route.method, route.path, strings.NewReader("{"))
+			request := httptest.NewRequestWithContext(t.Context(), route.method, route.path, strings.NewReader("{"))
 			if authorized {
 				request.Header.Set("Authorization", "Bearer "+token)
 			}
