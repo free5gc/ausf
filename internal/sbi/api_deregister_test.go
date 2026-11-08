@@ -55,6 +55,9 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 		otherSUPI = "imsi-001010000000002"
 		path      = "/nausf-auth/v1/ue-authentications/deregister"
 	)
+
+	// Generate a trusted NRF certificate and an untrusted signing key
+	// to verify JWT signature validation.
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	untrustedKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -70,6 +73,9 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 	require.NoError(t, err)
 	certPath := filepath.Join(t.TempDir(), "nrf.pem")
 	require.NoError(t, os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600))
+
+	// Enable OAuth for this test and use t.Cleanup to restore the changed global
+	// configuration fields and remove the test UE contexts.
 	self := ausf_context.GetSelf()
 	id, nrfURI, certPEM := self.NfId, self.NrfUri, self.NrfCertPem
 	nrfInstanceID, required := self.NrfNfInstanceID, self.OAuth2Required
@@ -90,6 +96,10 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 	a.p, err = processor.NewProcessor(a)
 	require.NoError(t, err)
 	router := newRouter(&Server{ServerAusf: a})
+
+	// Cover successful deregistration, OAuth rejection, invalid payloads,
+	// and missing UE contexts through the actual router, OAuth middleware,
+	// handler, and processor.
 	tests := []struct {
 		name   string
 		change func(*deregisterClaims)
@@ -161,6 +171,9 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 			}
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, request)
+
+			// Only successful requests may remove the target UE context and SUCI mapping;
+			// unrelated UE contexts must remain intact.
 			require.Equal(t, tt.want, response.Code, response.Body.String())
 			require.Equal(t, tt.want != 204, ausf_context.CheckIfAusfUeContextExists(supi))
 			require.Equal(t, tt.want != 204, ausf_context.CheckIfSuciSupiPairExists(alias))
@@ -171,6 +184,8 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 				require.Equal(t, tt.cause, pd.Cause)
 				require.Equal(t, "application/problem+json", response.Header().Get("Content-Type"))
 			}
+
+			// A repeated deregistration must return 404 after successful cleanup.
 			if tt.want == 204 {
 				require.Empty(t, response.Body.String())
 				retry := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path, strings.NewReader(body))

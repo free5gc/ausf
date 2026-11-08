@@ -22,11 +22,15 @@ func TestNausfAuthAdvertisesOnlyAllowedConsumers(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, profile.NfServices, 1)
+
+	// Verify that the advertised nausf-auth policy allows AMF and UDM, but not SMF.
 	allowed := profile.NfServices[0].AllowedNfTypes
 	require.ElementsMatch(t, []models.Nrf_NFMgmt_NFType{
 		models.Nrf_NFMgmt_NFType_AMF, models.Nrf_NFMgmt_NFType_UDM,
 	}, allowed)
 	require.NotContains(t, allowed, models.Nrf_NFMgmt_NFType_SMF)
+
+	// Ensure callers cannot modify the shared service policy through the returned slice.
 	copyOfPolicy, known := ausf_context.AllowedNfTypesForService(service)
 	require.True(t, known)
 	copyOfPolicy[0] = models.Nrf_NFMgmt_NFType_SMF
