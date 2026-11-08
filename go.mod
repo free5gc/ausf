@@ -6,7 +6,7 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d
 	github.com/bronze1man/radius v0.0.0-20190516032554-afd8baec892d
 	github.com/free5gc/openapi v1.3.1-0.20261014070323-89accd9890ce
-	github.com/free5gc/util v1.4.1-0.20261014070359-d865b0ce854b
+	github.com/free5gc/util v1.4.1-0.20261105063436-ea3001890fa5
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
