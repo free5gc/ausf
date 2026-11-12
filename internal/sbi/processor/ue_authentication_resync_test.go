@@ -13,13 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/h2non/gock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
-	"github.com/free5gc/ausf/internal/sbi/consumer"
-	"github.com/free5gc/ausf/pkg/app"
-	"github.com/free5gc/ausf/pkg/factory"
-	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/models"
 )
 
@@ -31,48 +26,19 @@ const (
 	resyncAuts       = "00112233445566778899aabbccdd"
 )
 
-type resyncTestApp struct {
-	*app.MockApp
-	consumer *consumer.Consumer
-}
-
-func (a *resyncTestApp) Consumer() *consumer.Consumer { return a.consumer }
-
-// newResyncTestProcessor stores an authentication context for resyncSupi and
+// newResyncTestProcessor stores an authentication context under resyncSuci and
 // mocks NRF discovery and the UDM. The UDM rejects every request, as the real
 // one would for these made-up AUTS values; the returned slice records the
 // resynchronizationInfo of each request it received.
 func newResyncTestProcessor(t *testing.T) (*Processor, *[]models.Udm_UEAU_ResynchronizationInfo) {
-	gin.SetMode(gin.TestMode)
-	factory.AusfConfig = &factory.Config{
-		Info: &factory.Info{Version: "1.0.3"},
-		Configuration: &factory.Configuration{
-			Sbi:    &factory.Sbi{Scheme: "http", RegisterIPv4: "127.0.0.9", Port: 8000},
-			NrfUri: "http://nrf.test",
-		},
-	}
-	ausf_context.Init()
-	ausf_context.AddAusfUeContextToPool(&ausf_context.AusfUeContext{
+	p := newTestProcessor(t)
+	ausf_context.AddAusfUeContextToPool(resyncSuci, &ausf_context.AusfUeContext{
 		Supi:               resyncSupi,
 		ServingNetworkName: resyncSnName,
 		AuthStatus:         models.Ausf_UEAU_AuthResult_ONGOING,
 		Rand:               resyncStoredRand,
 	})
-	ausf_context.AddSuciSupiPairToMap(resyncSuci, resyncSupi)
-	t.Cleanup(func() { ausf_context.GetSelf().UePool.Delete(resyncSupi) })
 
-	openapi.InterceptInnerHttp2Client(t, false)
-	t.Cleanup(gock.Off)
-	gock.New("http://nrf.test").Get("/nnrf-disc/v1/nf-instances").Persist().Reply(http.StatusOK).
-		JSON(map[string]interface{}{"nfInstances": []interface{}{map[string]interface{}{
-			"nfInstanceId": "udm", "nfType": "UDM", "nfStatus": "REGISTERED",
-			"nfServices": []interface{}{map[string]interface{}{
-				"serviceInstanceId": "1", "serviceName": "nudm-ueau", "scheme": "http",
-				"nfServiceStatus": "REGISTERED",
-				"versions":        []interface{}{map[string]interface{}{"apiVersionInUri": "v1"}},
-				"ipEndPoints":     []interface{}{map[string]interface{}{"ipv4Address": "127.0.0.3", "port": 8000}},
-			}},
-		}}})
 	forwarded := []models.Udm_UEAU_ResynchronizationInfo{}
 	gock.New("http://127.0.0.3:8000").Post("/nudm-ueau/v1/" + resyncSuci + "/security-information/generate-auth-data").
 		Persist().
@@ -90,13 +56,6 @@ func newResyncTestProcessor(t *testing.T) (*Processor, *[]models.Udm_UEAU_Resync
 		}).
 		Reply(http.StatusForbidden).
 		JSON(models.ProblemDetails{Status: http.StatusForbidden, Cause: "AUTHENTICATION_REJECTED"})
-
-	mockApp := app.NewMockApp(gomock.NewController(t))
-	mockApp.EXPECT().Context().Return(ausf_context.GetSelf()).AnyTimes()
-	c, err := consumer.NewConsumer(mockApp)
-	require.NoError(t, err)
-	p, err := NewProcessor(&resyncTestApp{MockApp: mockApp, consumer: c})
-	require.NoError(t, err)
 	return p, &forwarded
 }
 
