@@ -8,6 +8,7 @@ import (
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/ausf/pkg/factory"
 	"github.com/free5gc/openapi/models"
+	"github.com/free5gc/util/serviceuri"
 )
 
 func InitAusfContext(context *AUSFContext) {
@@ -67,18 +68,12 @@ func AddNfServices(
 	context *AUSFContext,
 ) {
 	var nfService models.Nrf_NFMgmt_NFService
-	var ipEndPoints []models.Nrf_NFMgmt_IpEndPoint
 	var nfServiceVersions []models.Nrf_NFMgmt_NFServiceVersion
 	services := *serviceMap
 
 	// nausf-auth
 	nfService.ServiceInstanceId = context.NfId
 	nfService.ServiceName = models.Nrf_NFMgmt_ServiceName_NAUSF_AUTH
-
-	var ipEndPoint models.Nrf_NFMgmt_IpEndPoint
-	ipEndPoint.Ipv4Address = context.RegisterIPv4
-	ipEndPoint.Port = int32(context.SBIPort)
-	ipEndPoints = append(ipEndPoints, ipEndPoint)
 
 	var nfServiceVersion models.Nrf_NFMgmt_NFServiceVersion
 	nfServiceVersion.ApiFullVersion = config.Info.Version
@@ -88,7 +83,9 @@ func AddNfServices(
 	nfService.Scheme = context.UriScheme
 	nfService.NfServiceStatus = models.Nrf_NFMgmt_NFServiceStatus_REGISTERED
 
-	nfService.IpEndPoints = ipEndPoints
+	addr := serviceuri.NewAddressing(context.RegisterIPv4)
+	nfService.Fqdn = addr.FQDN
+	nfService.IpEndPoints = addr.IpEndPoints(int32(context.SBIPort))
 	nfService.Versions = nfServiceVersions
 	services[models.Nrf_NFMgmt_ServiceName_NAUSF_AUTH] = nfService
 }
