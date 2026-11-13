@@ -2,12 +2,11 @@ package consumer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/pkg/errors"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
@@ -162,7 +161,7 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context, applyOAuth2 bool) 
 
 	nfProfile, err := s.buildNfProfile(ausfContext)
 	if err != nil {
-		return errors.Wrap(err, "RegisterNFInstance buildNfProfile()")
+		return fmt.Errorf("RegisterNFInstance buildNfProfile(): %w", err)
 	}
 
 	var res *Nnrf_NFManagement.RegisterNFInstanceResponse

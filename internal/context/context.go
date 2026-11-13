@@ -2,12 +2,13 @@ package context
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 
 	"github.com/free5gc/ausf/internal/logger"
 	"github.com/free5gc/openapi/models"
@@ -208,7 +209,7 @@ func (c *AUSFContext) GetTokenCtxForNFInstance(serviceName models.Nrf_NFMgmt_Ser
 	}
 	targetID, err := uuid.Parse(strings.TrimSpace(targetNFInstanceID))
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "invalid target NF instance ID")
+		return nil, nil, fmt.Errorf("invalid target NF instance ID: %w", err)
 	}
 	if targetID.Version() != 4 {
 		return nil, nil, errors.New("invalid target NF instance ID: UUID must be version 4")
@@ -259,7 +260,7 @@ func (c *AUSFContext) SetOAuth2Required(required bool) error {
 	// Commit the new OAuth state only after identity parsing succeeds.
 	nrfNfInstanceID, err := oauth.NFInstanceIDFromCertificate(c.NrfCertPem)
 	if err != nil {
-		return errors.Wrap(err, "derive trusted NRF instance ID from certificate")
+		return fmt.Errorf("derive trusted NRF instance ID from certificate: %w", err)
 	}
 	c.NrfNfInstanceID = nrfNfInstanceID
 	c.OAuth2Required = true
@@ -272,7 +273,8 @@ func (c *AUSFContext) AuthorizationCheck(token string, serviceName models.Nrf_NF
 		return nil
 	}
 
-	logger.UtilLog.Debugf("AUSFContext::AuthorizationCheck: token[%s] serviceName[%s]\n", token, serviceName)
+	logger.UtilLog.Debugf("AUSFContext::AuthorizationCheck: tokenPresent[%t] serviceName[%s]",
+		token != "", serviceName)
 	// Use the certificate-derived NRF ID as the expected issuer.
 	// Accept an audience matching either this AUSF instance or the AUSF type;
 	// both accepted identities come from local state.
