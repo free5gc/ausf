@@ -103,12 +103,15 @@ func newRouter(s *Server) *gin.Engine {
 func (s *Server) Run(ctx context.Context, wg *sync.WaitGroup) error {
 	if err := s.Consumer().RegisterNFInstance(ctx, true); err != nil {
 		logger.InitLog.Errorf("AUSF register to NRF Error[%s]", err.Error())
-	} else {
-		// Only a registered profile has something to keep alive.
-		s.Consumer().StartHeartbeat(ctx, wg)
+		return err
 	}
 
+	// Only a registered profile has something to keep alive.
+	s.Consumer().StartHeartbeat(ctx, wg)
+
 	wg.Add(1)
+
+	// Start AUSF server only if the NRF registration has succeeded.
 	go s.startServer(wg)
 
 	return nil

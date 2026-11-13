@@ -2,11 +2,11 @@ package consumer
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
-
-	"github.com/pkg/errors"
 
 	ausf_context "github.com/free5gc/ausf/internal/context"
 	"github.com/free5gc/ausf/internal/logger"
@@ -104,10 +104,7 @@ func (s *nnrfService) SendSearchNFInstances(
 		return nil, openapi.ReportError("nrf not found")
 	}
 
-	ctx, _, err := ausf_context.GetSelf().GetTokenCtx(
-		models.Nrf_NFMgmt_ServiceName_NNRF_DISC,
-		models.Nrf_NFMgmt_NFType_NRF,
-	)
+	ctx, _, err := s.consumer.Context().GetTokenCtxForNRF(models.Nrf_NFMgmt_ServiceName_NNRF_DISC)
 	if err != nil {
 		return nil, err
 	}
@@ -126,9 +123,8 @@ func (s *nnrfService) SendDeregisterNFInstance() (*models.ProblemDetails, error)
 	logger.ConsumerLog.Infof("[AUSF] Send Deregister NFInstance")
 
 	ausfContext := s.consumer.Context()
-	ctx, pd, err := ausfContext.GetTokenCtx(
+	ctx, pd, err := ausfContext.GetTokenCtxForNRF(
 		models.Nrf_NFMgmt_ServiceName_NNRF_NFM,
-		models.Nrf_NFMgmt_NFType_NRF,
 	)
 	if err != nil {
 		return pd, err
@@ -166,7 +162,7 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context, applyOAuth2 bool) 
 
 	nfProfile, err := s.buildNfProfile(ausfContext)
 	if err != nil {
-		return errors.Wrap(err, "RegisterNFInstance buildNfProfile()")
+		return fmt.Errorf("RegisterNFInstance buildNfProfile(): %w", err)
 	}
 
 	var res *Nnrf_NFManagement.RegisterNFInstanceResponse
@@ -177,12 +173,10 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context, applyOAuth2 bool) 
 	for ctx.Err() == nil {
 		res, err = client.NFInstanceIDDocumentApi.RegisterNFInstance(ctx, registerNFInstanceRequest)
 		if err == nil && res != nil {
-			var nf models.Nrf_NFMgmt_NFProfile
-			if res.Nrf_NFMgmt_NFProfile != nil {
-				nf = *res.Nrf_NFMgmt_NFProfile
+			if res.Nrf_NFMgmt_NFProfile == nil {
+				return errors.New("invalid NFRegister response: NFProfile is missing")
 			}
-			s.processRegisterResponse(ausfContext, nf, applyOAuth2)
-			return nil
+			return s.processRegisterResponse(ausfContext, *res.Nrf_NFMgmt_NFProfile, applyOAuth2)
 		}
 		logger.ConsumerLog.Errorf("AUSF register to NRF Error[%v]", err)
 		select {
@@ -193,30 +187,52 @@ func (s *nnrfService) RegisterNFInstance(ctx context.Context, applyOAuth2 bool) 
 	return fmt.Errorf("NFRegister aborted: %w (last error: %v)", ctx.Err(), err)
 }
 
-// processRegisterResponse adopts what the NRF answered to the NFRegister PUT: the
-// heartbeat interval and the oauth2 custom info.
+// processRegisterResponse validates the NRF registration response,
+// applies OAuth settings only when requested, and updates the heartbeat
+// interval only after validation and OAuth initialization succeed.
 func (s *nnrfService) processRegisterResponse(
 	ausfContext *ausf_context.AUSFContext,
 	nf models.Nrf_NFMgmt_NFProfile,
 	applyOAuth2 bool,
-) {
-	s.heartbeatTimer = nf.HeartBeatTimer
+) error {
+	// Validate the returned profile before applying registration state.
+	// Otherwise, an empty profile could be mistaken for OAuth being disabled.
+	if nf.NfInstanceId == "" {
+		return errors.New("invalid NFRegister response: nfInstanceId is missing")
+	}
+	if !strings.EqualFold(nf.NfInstanceId, ausfContext.NfId) {
+		return errors.New("invalid NFRegister response: nfInstanceId does not match AUSF")
+	}
+	if nf.NfType != models.Nrf_NFMgmt_NFType_AUSF {
+		return errors.New("invalid NFRegister response: nfType must be AUSF")
+	}
+	// NFStatus is extensible in TS 29.510; do not reject future nonempty values.
+	if strings.TrimSpace(string(nf.NfStatus)) == "" {
+		return errors.New("invalid NFRegister response: nfStatus is empty")
+	}
 
+	// Keep the legacy OAuth-disabled default when the setting is absent.
+	// Reject an explicitly supplied value unless it is boolean.
 	oauth2 := false
 	if customInfo, ok := nf.CustomInfo.(map[string]interface{}); ok {
-		if v, isBool := customInfo["oauth2"].(bool); isBool {
-			oauth2 = v
+		if value, present := customInfo["oauth2"]; present {
+			var isBool bool
+			oauth2, isBool = value.(bool)
+			if !isBool {
+				return errors.New("invalid NFRegister response: customInfo.oauth2 must be boolean")
+			}
 			logger.MainLog.Infoln("OAuth2 setting receive from NRF:", oauth2)
 		}
 	}
 	if applyOAuth2 {
-		ausfContext.OAuth2Required = oauth2
-		if oauth2 && ausfContext.NrfCertPem == "" {
-			logger.CfgLog.Error("OAuth2 enable but no nrfCertPem provided in config.")
+		if err := ausfContext.SetOAuth2Required(oauth2); err != nil {
+			return err
 		}
 	} else if oauth2 != ausfContext.OAuth2Required {
 		logger.ConsumerLog.Warnf("NRF OAuth2 setting changed to %v, restart AUSF to apply it", oauth2)
 	}
+	s.heartbeatTimer = nf.HeartBeatTimer
+	return nil
 }
 
 // SendUpdateNFInstance sends an NFUpdate PATCH to the NRF, honoring ctx. The
@@ -226,9 +242,8 @@ func (s *nnrfService) SendUpdateNFInstance(ctx context.Context, patchItems []mod
 	nf models.Nrf_NFMgmt_NFProfile, problemDetails *models.ProblemDetails, err error,
 ) {
 	ausfContext := s.consumer.Context()
-	tokCtx, pd, err := ausfContext.GetTokenCtx(
+	tokCtx, pd, err := ausfContext.GetTokenCtxForNRF(
 		models.Nrf_NFMgmt_ServiceName_NNRF_NFM,
-		models.Nrf_NFMgmt_NFType_NRF,
 	)
 	if err != nil {
 		return nf, pd, err
@@ -280,6 +295,11 @@ func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
 	profile.Ipv6Addresses = addr.IPv6Addresses
 	services := []models.Nrf_NFMgmt_NFService{}
 	for _, nfService := range ausfContext.NfService {
+		allowed, known := ausf_context.AllowedNfTypesForService(nfService.ServiceName)
+		if !known {
+			return profile, fmt.Errorf("no AllowedNfTypes policy for service %q", nfService.ServiceName)
+		}
+		nfService.AllowedNfTypes = allowed
 		services = append(services, nfService)
 	}
 	if len(services) > 0 {
@@ -297,7 +317,7 @@ func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
 		// 	},
 		// },
 	}
-	return
+	return profile, nil
 }
 
 func (s *nnrfService) GetUdmUrl(nrfUri string) (string, error) {

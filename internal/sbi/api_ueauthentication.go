@@ -20,6 +20,7 @@ import (
 	"github.com/free5gc/openapi"
 	"github.com/free5gc/openapi/models"
 	"github.com/free5gc/util/metrics/sbi"
+	"github.com/free5gc/util/validator"
 )
 
 // Index is the index handler.
@@ -235,8 +236,46 @@ func (s *Server) HTTPRgAuthenticationsPost(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{})
 }
 
+// HTTPUeAuthenticationsDeregisterPost handles UE authentication
+// deregistration requests from UDM.
 func (s *Server) HTTPUeAuthenticationsDeregisterPost(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{})
+	// Declare a structure to store the deregistration information.
+	var info models.Ausf_UEAU_DeregistrationInfo
+
+	// Read the HTTP request body.
+	body, err := c.GetRawData()
+	if err != nil {
+		c.Header("Content-Type", "application/problem+json")
+		c.JSON(http.StatusBadRequest, models.ProblemDetails{
+			Status: http.StatusBadRequest, Cause: "INVALID_MSG_FORMAT", Detail: err.Error(),
+		})
+		return
+	}
+
+	// Deserialize the JSON request body into the deregistration information.
+	if err = openapi.Deserialize(&info, body, "application/json"); err != nil {
+		c.Header("Content-Type", "application/problem+json")
+		c.JSON(http.StatusBadRequest, models.ProblemDetails{
+			Status: http.StatusBadRequest, Cause: "INVALID_MSG_FORMAT", Detail: err.Error(),
+		})
+		return
+	}
+
+	// Validate the SUPI format.
+	if !validator.IsValidSupi(info.Supi) {
+		cause := "MANDATORY_IE_INCORRECT"
+		if info.Supi == "" {
+			cause = "MANDATORY_IE_MISSING"
+		}
+		c.Header("Content-Type", "application/problem+json")
+		c.JSON(http.StatusBadRequest, models.ProblemDetails{
+			Status: http.StatusBadRequest, Cause: cause, Detail: "supi must be a valid SUPI",
+		})
+		return
+	}
+
+	// Turn to processor for further processing.
+	s.Processor().UeAuthenticationsDeregisterProcedure(c, info)
 }
 
 func (s *Server) HTTPPostRgAuthentications(c *gin.Context) {
