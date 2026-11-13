@@ -48,8 +48,8 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 ) {
 	var eapSession models.Ausf_UEAU_EapSession
 
-	if !ausf_context.CheckIfSuciSupiPairExists(eapSessionID) {
-		logger.AuthELog.Infoln("supiSuciPair does not exist, confirmation failed")
+	if !ausf_context.CheckIfAusfUeContextExists(eapSessionID) {
+		logger.AuthELog.Infoln("authentication context does not exist, confirmation failed")
 		problemDetails := models.ProblemDetails{
 			Status: http.StatusNotFound,
 			Cause:  "USER_NOT_FOUND",
@@ -59,19 +59,8 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 		return
 	}
 
-	currentSupi := ausf_context.GetSupiFromSuciSupiMap(eapSessionID)
-	if !ausf_context.CheckIfAusfUeContextExists(currentSupi) {
-		logger.AuthELog.Infoln("SUPI does not exist, confirmation failed")
-		problemDetails := models.ProblemDetails{
-			Status: http.StatusNotFound,
-			Cause:  "USER_NOT_FOUND",
-		}
-		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
-		c.JSON(int(problemDetails.Status), problemDetails)
-		return
-	}
-
-	ausfCurrentContext := ausf_context.GetAusfUeContext(currentSupi)
+	ausfCurrentContext := ausf_context.GetAusfUeContext(eapSessionID)
+	currentSupi := ausfCurrentContext.Supi
 	servingNetworkName := ausfCurrentContext.ServingNetworkName
 
 	if ausfCurrentContext.AuthStatus == models.Ausf_UEAU_AuthResult_FAILURE {
@@ -286,22 +275,32 @@ func (p *Processor) UeAuthPostRequestProcedure(
 	var lastEapID uint8
 	if updateAuthenticationInfo.ResynchronizationInfo != nil {
 		logger.UeAuthLog.Warningln("Auts: ", updateAuthenticationInfo.ResynchronizationInfo.Auts)
-		if !ausf_context.CheckIfSuciSupiPairExists(supiOrSuci) {
-			logger.UeAuthLog.Warningln("Resync failed: SUCI mapping not found for ", supiOrSuci)
+		if !ausf_context.CheckIfAusfUeContextExists(supiOrSuci) {
+			logger.UeAuthLog.Warningln("Resync failed: AusfUeContext not found for ", supiOrSuci)
 			c.JSON(http.StatusNotFound, models.ProblemDetails{Status: 404, Cause: "USER_NOT_FOUND"})
 			return
 		}
-		ausfCurrentSupi := ausf_context.GetSupiFromSuciSupiMap(supiOrSuci)
-		logger.UeAuthLog.Warningln(ausfCurrentSupi)
-		if !ausf_context.CheckIfAusfUeContextExists(ausfCurrentSupi) {
-			logger.UeAuthLog.Warningln("Resync failed: AusfUeContext not found for SUPI: ", ausfCurrentSupi)
-			c.JSON(http.StatusNotFound, models.ProblemDetails{Status: 404, Cause: "USER_NOT_FOUND"})
-			return
-		}
-		ausfCurrentContext := ausf_context.GetAusfUeContext(ausfCurrentSupi)
+		ausfCurrentContext := ausf_context.GetAusfUeContext(supiOrSuci)
 		logger.UeAuthLog.Warningln(ausfCurrentContext.Rand)
 		if updateAuthenticationInfo.ResynchronizationInfo.Rand == "" {
 			updateAuthenticationInfo.ResynchronizationInfo.Rand = ausfCurrentContext.Rand
+		}
+		// TS 33.501 clause 6.1.3.3.2: the resynchronisation is for the RAND sent
+		// to the UE in the preceding Authentication Request. Only accept the RAND
+		// and serving network of this UE's authentication context, so that the
+		// UDM never resets SQN from an AUTS bound to another challenge.
+		if !strings.EqualFold(updateAuthenticationInfo.ResynchronizationInfo.Rand, ausfCurrentContext.Rand) ||
+			snName != ausfCurrentContext.ServingNetworkName {
+			logger.UeAuthLog.Warnf("Resync rejected: RAND or serving network does not match the "+
+				"authentication context of %s", supiOrSuci)
+			problemDetails := models.ProblemDetails{
+				Status: http.StatusForbidden,
+				Cause:  "AUTHENTICATION_REJECTED",
+				Detail: "resynchronizationInfo does not match the authentication context",
+			}
+			c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+			c.JSON(http.StatusForbidden, problemDetails)
+			return
 		}
 		logger.UeAuthLog.Warningln("Rand: ", updateAuthenticationInfo.ResynchronizationInfo.Rand)
 		authInfoReq.ResynchronizationInfo = updateAuthenticationInfo.ResynchronizationInfo
@@ -367,10 +366,7 @@ func (p *Processor) UeAuthPostRequestProcedure(
 	ausfUeContext.ServingNetworkName = snName
 	ausfUeContext.AuthStatus = models.Ausf_UEAU_AuthResult_ONGOING
 	ausfUeContext.UdmUeauUrl = udmUrl
-	ausf_context.AddAusfUeContextToPool(ausfUeContext)
-
-	logger.UeAuthLog.Infof("Add SuciSupiPair (%s, %s) to map.\n", supiOrSuci, ueid)
-	ausf_context.AddSuciSupiPairToMap(supiOrSuci, ueid)
+	ausf_context.AddAusfUeContextToPool(supiOrSuci, ausfUeContext)
 
 	locationURI := self.Url + factory.AusfAuthResUriPrefix + "/ue-authentications/" + supiOrSuci
 	putLink := locationURI
@@ -566,8 +562,8 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(
 		return
 	}
 
-	if !ausf_context.CheckIfSuciSupiPairExists(ConfirmationDataResponseID) {
-		logger.Auth5gAkaLog.Infof("supiSuciPair does not exist, confirmation failed (queried by %s)\n",
+	if !ausf_context.CheckIfAusfUeContextExists(ConfirmationDataResponseID) {
+		logger.Auth5gAkaLog.Infof("authentication context does not exist, confirmation failed (queried by %s)\n",
 			ConfirmationDataResponseID)
 		problemDetails := models.ProblemDetails{
 			Cause:  "USER_NOT_FOUND",
@@ -578,19 +574,8 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(
 		return
 	}
 
-	currentSupi := ausf_context.GetSupiFromSuciSupiMap(ConfirmationDataResponseID)
-	if !ausf_context.CheckIfAusfUeContextExists(currentSupi) {
-		logger.Auth5gAkaLog.Infof("SUPI does not exist, confirmation failed (queried by %s)\n", currentSupi)
-		problemDetails := models.ProblemDetails{
-			Cause:  "USER_NOT_FOUND",
-			Status: http.StatusBadRequest,
-		}
-		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
-		c.JSON(http.StatusBadRequest, problemDetails)
-		return
-	}
-
-	ausfCurrentContext := ausf_context.GetAusfUeContext(currentSupi)
+	ausfCurrentContext := ausf_context.GetAusfUeContext(ConfirmationDataResponseID)
+	currentSupi := ausfCurrentContext.Supi
 	servingNetworkName := ausfCurrentContext.ServingNetworkName
 
 	// Compare the received RES* with the stored XRES*

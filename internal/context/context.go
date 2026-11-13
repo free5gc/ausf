@@ -16,8 +16,7 @@ import (
 )
 
 type AUSFContext struct {
-	suciSupiMap          sync.Map
-	UePool               sync.Map
+	UePool               sync.Map // authCtxId -> *AusfUeContext
 	NfId                 string
 	GroupID              string
 	SBIPort              int
@@ -53,11 +52,6 @@ type AusfUeContext struct {
 	Rand     string
 	EapID    uint8
 	Resynced bool
-}
-
-type SuciSupiMap struct {
-	SupiOrSuci string
-	Supi       string
 }
 
 type EapAkaPrimeAttribute struct {
@@ -122,8 +116,12 @@ func NewAusfUeContext(identifier string) (ausfUeContext *AusfUeContext) {
 	return ausfUeContext
 }
 
-func AddAusfUeContextToPool(ausfUeContext *AusfUeContext) {
-	ausfContext.UePool.Store(ausfUeContext.Supi, ausfUeContext)
+// AddAusfUeContextToPool stores the context of one authentication under its
+// authCtxId, the SUCI or SUPI of the request that started it (TS 33.501
+// clause 6.1.3.2), so that authentications of one SUPI do not replace each
+// other.
+func AddAusfUeContextToPool(authCtxId string, ausfUeContext *AusfUeContext) {
+	ausfContext.UePool.Store(authCtxId, ausfUeContext)
 }
 
 // RemoveUEAuthenticationContext removes the security context and all SUPI/SUCI
@@ -155,25 +153,6 @@ func GetAusfUeContext(ref string) *AusfUeContext {
 	context, _ := ausfContext.UePool.Load(ref)
 	ausfUeContext := context.(*AusfUeContext)
 	return ausfUeContext
-}
-
-func AddSuciSupiPairToMap(supiOrSuci string, supi string) {
-	newPair := new(SuciSupiMap)
-	newPair.SupiOrSuci = supiOrSuci
-	newPair.Supi = supi
-	ausfContext.suciSupiMap.Store(supiOrSuci, newPair)
-}
-
-func CheckIfSuciSupiPairExists(ref string) bool {
-	_, ok := ausfContext.suciSupiMap.Load(ref)
-	return ok
-}
-
-func GetSupiFromSuciSupiMap(ref string) (supi string) {
-	val, _ := ausfContext.suciSupiMap.Load(ref)
-	suciSupiMap := val.(*SuciSupiMap)
-	supi = suciSupiMap.Supi
-	return supi
 }
 
 func IsServingNetworkAuthorized(lookup string) bool {
