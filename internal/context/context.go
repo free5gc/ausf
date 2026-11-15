@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -16,8 +17,15 @@ import (
 )
 
 type AUSFContext struct {
-	suciSupiMap          sync.Map
-	UePool               sync.Map
+	// UePool holds the context of each subscriber's last confirmed
+	// authentication, by SUPI.
+	UePool sync.Map
+	// authCtxs holds the authentications that are not confirmed yet, by
+	// authCtxId, and authCtxExpiries the same entries in the order they were
+	// added.
+	authCtxMu            sync.Mutex
+	authCtxs             map[string]*authCtx
+	authCtxExpiries      []authCtxExpiry
 	NfId                 string
 	GroupID              string
 	SBIPort              int
@@ -55,10 +63,24 @@ type AusfUeContext struct {
 	Resynced bool
 }
 
-type SuciSupiMap struct {
-	SupiOrSuci string
-	Supi       string
+type authCtx struct {
+	ue      *AusfUeContext
+	expires time.Time
 }
+
+type authCtxExpiry struct {
+	authCtxId string
+	ctx       *authCtx
+}
+
+// authCtxLifetime is how long an authentication that is not confirmed is kept
+// after it was added. The AMF aborts an authentication procedure at the fifth
+// expiry of T3560 (6 s, TS 24.501 clause 5.4.1.3.7); an EAP-AKA' session can
+// take two such exchanges.
+const authCtxLifetime = 2 * time.Minute
+
+// now is the clock of authCtxLifetime; tests replace it.
+var now = time.Now
 
 type EapAkaPrimeAttribute struct {
 	Type   uint8
@@ -122,58 +144,60 @@ func NewAusfUeContext(identifier string) (ausfUeContext *AusfUeContext) {
 	return ausfUeContext
 }
 
-func AddAusfUeContextToPool(ausfUeContext *AusfUeContext) {
-	ausfContext.UePool.Store(ausfUeContext.Supi, ausfUeContext)
-}
-
-// RemoveUEAuthenticationContext removes the security context and all SUPI/SUCI
-// aliases referring to it. Deregister is addressed by SUPI, not by authCtxId.
-func (c *AUSFContext) RemoveUEAuthenticationContext(supi string) bool {
-	// Find and remove the UE authentication context by SUPI.
-	// Return false if the context does not exist.
-	if _, found := c.UePool.LoadAndDelete(supi); !found {
-		return false
-	}
-
-	// Iterate through all SUCI-to-SUPI mappings.
-	c.suciSupiMap.Range(func(key, value any) bool {
-		if pair, ok := value.(*SuciSupiMap); ok && pair.Supi == supi {
-			c.suciSupiMap.CompareAndDelete(key, value)
+// AddAuthCtx stores an authentication that is not confirmed yet under its
+// authCtxId, the SUCI or SUPI of the request that started it (TS 33.501
+// clause 6.1.3.2), and replaces an earlier one under the same authCtxId. It
+// first removes the authentications whose lifetime has passed.
+func (c *AUSFContext) AddAuthCtx(authCtxId string, ue *AusfUeContext) {
+	c.authCtxMu.Lock()
+	defer c.authCtxMu.Unlock()
+	t := now()
+	for len(c.authCtxExpiries) > 0 && !t.Before(c.authCtxExpiries[0].ctx.expires) {
+		e := c.authCtxExpiries[0]
+		if c.authCtxs[e.authCtxId] == e.ctx {
+			delete(c.authCtxs, e.authCtxId)
 		}
-		return true
-	})
-
-	return true
+		c.authCtxExpiries[0] = authCtxExpiry{}
+		c.authCtxExpiries = c.authCtxExpiries[1:]
+	}
+	if c.authCtxs == nil {
+		c.authCtxs = make(map[string]*authCtx)
+	}
+	ctx := &authCtx{ue: ue, expires: t.Add(authCtxLifetime)}
+	c.authCtxs[authCtxId] = ctx
+	c.authCtxExpiries = append(c.authCtxExpiries, authCtxExpiry{authCtxId: authCtxId, ctx: ctx})
 }
 
-func CheckIfAusfUeContextExists(ref string) bool {
-	_, ok := ausfContext.UePool.Load(ref)
-	return ok
+// GetAuthCtx returns the authentication stored under authCtxId, unless it was
+// confirmed or its lifetime has passed.
+func (c *AUSFContext) GetAuthCtx(authCtxId string) (*AusfUeContext, bool) {
+	c.authCtxMu.Lock()
+	defer c.authCtxMu.Unlock()
+	ctx, ok := c.authCtxs[authCtxId]
+	if !ok || !now().Before(ctx.expires) {
+		return nil, false
+	}
+	return ctx.ue, true
 }
 
-func GetAusfUeContext(ref string) *AusfUeContext {
-	context, _ := ausfContext.UePool.Load(ref)
-	ausfUeContext := context.(*AusfUeContext)
-	return ausfUeContext
+// ConfirmAuthCtx moves a successful authentication from its authCtxId to the
+// confirmed context of its SUPI, which it replaces.
+func (c *AUSFContext) ConfirmAuthCtx(authCtxId string, ue *AusfUeContext) {
+	c.authCtxMu.Lock()
+	if ctx, ok := c.authCtxs[authCtxId]; ok && ctx.ue == ue {
+		delete(c.authCtxs, authCtxId)
+	}
+	c.authCtxMu.Unlock()
+	c.UePool.Store(ue.Supi, ue)
 }
 
-func AddSuciSupiPairToMap(supiOrSuci string, supi string) {
-	newPair := new(SuciSupiMap)
-	newPair.SupiOrSuci = supiOrSuci
-	newPair.Supi = supi
-	ausfContext.suciSupiMap.Store(supiOrSuci, newPair)
-}
-
-func CheckIfSuciSupiPairExists(ref string) bool {
-	_, ok := ausfContext.suciSupiMap.Load(ref)
-	return ok
-}
-
-func GetSupiFromSuciSupiMap(ref string) (supi string) {
-	val, _ := ausfContext.suciSupiMap.Load(ref)
-	suciSupiMap := val.(*SuciSupiMap)
-	supi = suciSupiMap.Supi
-	return supi
+// RemoveUEAuthenticationContext removes the confirmed context of a SUPI and
+// returns false if there was none. Deregister is addressed by SUPI, not by
+// authCtxId; an authentication in progress is left to its lifetime, so that a
+// late deregistration does not end a new registration.
+func (c *AUSFContext) RemoveUEAuthenticationContext(supi string) bool {
+	_, found := c.UePool.LoadAndDelete(supi)
+	return found
 }
 
 func IsServingNetworkAuthorized(lookup string) bool {
