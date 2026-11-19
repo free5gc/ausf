@@ -74,6 +74,17 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 	ausfCurrentContext := ausf_context.GetAusfUeContext(currentSupi)
 	servingNetworkName := ausfCurrentContext.ServingNetworkName
 
+	if ausfCurrentContext.AuthType == models.Ausf_UEAU_AuthType_5_G_AKA {
+		logger.AuthELog.Infof("authentication of %s is 5G AKA, confirmation failed", eapSessionID)
+		problemDetails := models.ProblemDetails{
+			Status: http.StatusNotFound,
+			Cause:  "USER_NOT_FOUND",
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(int(problemDetails.Status), problemDetails)
+		return
+	}
+
 	if ausfCurrentContext.AuthStatus == models.Ausf_UEAU_AuthResult_FAILURE {
 		logger.AuthELog.Warnf("Authentication failed with status: %s", ausfCurrentContext.AuthStatus)
 		eapFailPkt := ConstructEapNoTypePkt(radius.EapCodeFailure, 0)
@@ -136,7 +147,7 @@ func (p *Processor) EapAuthComfirmRequestProcedure(
 			XRES := ausfCurrentContext.XRES
 			RES := hex.EncodeToString(decodeEapAkaPrimePkt.Attributes[ausf_context.AT_RES_ATTRIBUTE].Value)
 
-			if !constantTimeEqual(MAC, XMAC) {
+			if len(K_aut) == 0 || !constantTimeEqual(MAC, XMAC) {
 				eapOK = false
 				eapErrStr = "EAP-AKA' integrity check fail"
 			} else if constantTimeHexEqual(XRES, RES) {
@@ -382,6 +393,7 @@ func (p *Processor) UeAuthPostRequestProcedure(
 
 	ausfUeContext := ausf_context.NewAusfUeContext(ueid)
 	ausfUeContext.ServingNetworkName = snName
+	ausfUeContext.AuthType = models.Ausf_UEAU_AuthType(authInfoResult.AuthType)
 	ausfUeContext.AuthStatus = models.Ausf_UEAU_AuthResult_ONGOING
 	ausfUeContext.UdmUeauUrl = udmUrl
 	ausf_context.AddAusfUeContextToPool(ausfUeContext)
@@ -582,6 +594,17 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(
 		c.JSON(http.StatusBadRequest, problemDetails)
 		return
 	}
+	if *updateConfirmationData.ResStar == "" {
+		problemDetails := models.ProblemDetails{
+			Title:  "Malformed request syntax",
+			Status: http.StatusBadRequest,
+			Detail: "resStar is empty",
+			Cause:  "MANDATORY_IE_INCORRECT",
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusBadRequest, problemDetails)
+		return
+	}
 
 	if !ausf_context.CheckIfSuciSupiPairExists(ConfirmationDataResponseID) {
 		logger.Auth5gAkaLog.Infof("supiSuciPair does not exist, confirmation failed (queried by %s)\n",
@@ -609,6 +632,18 @@ func (p *Processor) Auth5gAkaComfirmRequestProcedure(
 
 	ausfCurrentContext := ausf_context.GetAusfUeContext(currentSupi)
 	servingNetworkName := ausfCurrentContext.ServingNetworkName
+
+	if ausfCurrentContext.AuthType != models.Ausf_UEAU_AuthType_5_G_AKA {
+		logger.Auth5gAkaLog.Infof("authentication of %s is not 5G AKA, confirmation failed\n",
+			ConfirmationDataResponseID)
+		problemDetails := models.ProblemDetails{
+			Cause:  "USER_NOT_FOUND",
+			Status: http.StatusBadRequest,
+		}
+		c.Set(sbi.IN_PB_DETAILS_CTX_STR, problemDetails.Cause)
+		c.JSON(http.StatusBadRequest, problemDetails)
+		return
+	}
 
 	// Compare the received RES* with the stored XRES*
 	if constantTimeHexEqual(*updateConfirmationData.ResStar, ausfCurrentContext.XresStar) {
@@ -654,8 +689,9 @@ func constantTimeHexEqual(a, b string) bool {
 	return constantTimeEqual(aBytes, bBytes)
 }
 
+// constantTimeEqual reports whether a and b are equal and not empty.
 func constantTimeEqual(a, b []byte) bool {
-	return len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1
+	return len(a) > 0 && len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1
 }
 
 func KDF5gAka(param ...string) hash.Hash {

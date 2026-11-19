@@ -41,6 +41,7 @@ type AusfUeContext struct {
 	Kausf              string
 	Kseaf              string
 	ServingNetworkName string
+	AuthType           models.Ausf_UEAU_AuthType
 	AuthStatus         models.Ausf_UEAU_AuthResult
 	UdmUeauUrl         string
 
