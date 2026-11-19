@@ -16,6 +16,7 @@ import (
 	Nnrf_NFManagement "github.com/free5gc/openapi/nrf/NFMgmt"
 	sbi_metrics "github.com/free5gc/util/metrics/sbi"
 	"github.com/free5gc/util/nfheartbeat"
+	"github.com/free5gc/util/serviceuri"
 )
 
 const registerRetryInterval = 2 * time.Second
@@ -288,7 +289,10 @@ func (s *nnrfService) buildNfProfile(ausfContext *ausf_context.AUSFContext) (
 	profile.NfInstanceId = ausfContext.NfId
 	profile.NfType = models.Nrf_NFMgmt_NFType_AUSF
 	profile.NfStatus = models.Nrf_NFMgmt_NFStatus_REGISTERED
-	profile.Ipv4Addresses = append(profile.Ipv4Addresses, ausfContext.RegisterIPv4)
+	addr := serviceuri.NewAddressing(ausfContext.RegisterIPv4)
+	profile.Fqdn = addr.FQDN
+	profile.Ipv4Addresses = addr.IPv4Addresses
+	profile.Ipv6Addresses = addr.IPv6Addresses
 	services := []models.Nrf_NFMgmt_NFService{}
 	for _, nfService := range ausfContext.NfService {
 		allowed, known := ausf_context.AllowedNfTypesForService(nfService.ServiceName)
@@ -334,7 +338,9 @@ func (s *nnrfService) GetUdmUrl(nrfUri string) (string, error) {
 		return "", err
 	}
 
-	_, udmUrl, err := openapi.GetServiceNfProfileAndUri(res.NfInstances, models.Nrf_NFMgmt_ServiceName_NUDM_UEAU)
+	// NFs that still register a full URL as apiPrefix remain reachable.
+	_, udmUrl, err := serviceuri.ResolveFromSearchResult(res.NfInstances, models.Nrf_NFMgmt_ServiceName_NUDM_UEAU,
+		serviceuri.Options{AllowLegacyAbsoluteAPIPrefix: true})
 	if err != nil {
 		return "", err
 	}
