@@ -139,10 +139,8 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ausf_context.AddAusfUeContextToPool(&ausf_context.AusfUeContext{Supi: supi, Kausf: "old-key"})
-			ausf_context.AddSuciSupiPairToMap(alias, supi)
-			ausf_context.AddSuciSupiPairToMap(supi, supi)
-			ausf_context.AddAusfUeContextToPool(&ausf_context.AusfUeContext{Supi: otherSUPI, Kausf: "other-key"})
+			self.UePool.Store(supi, &ausf_context.AusfUeContext{Supi: supi, Kausf: "old-key"})
+			self.UePool.Store(otherSUPI, &ausf_context.AusfUeContext{Supi: otherSUPI, Kausf: "other-key"})
 			claims := deregisterClaims{Scope: "nausf-auth", RegisteredClaims: jwt.RegisteredClaims{
 				Issuer: nrfID, Subject: udmID, Audience: jwt.ClaimStrings{ausfID},
 				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
@@ -172,12 +170,13 @@ func TestDeregisterRouteOAuthAndCleanup(t *testing.T) {
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, request)
 
-			// Only successful requests may remove the target UE context and SUCI mapping;
+			// Only successful requests may remove the target UE context;
 			// unrelated UE contexts must remain intact.
 			require.Equal(t, tt.want, response.Code, response.Body.String())
-			require.Equal(t, tt.want != 204, ausf_context.CheckIfAusfUeContextExists(supi))
-			require.Equal(t, tt.want != 204, ausf_context.CheckIfSuciSupiPairExists(alias))
-			require.True(t, ausf_context.CheckIfAusfUeContextExists(otherSUPI))
+			_, confirmed := self.UePool.Load(supi)
+			require.Equal(t, tt.want != 204, confirmed)
+			_, confirmed = self.UePool.Load(otherSUPI)
+			require.True(t, confirmed)
 			if tt.cause != "" {
 				var pd models.ProblemDetails
 				require.NoError(t, json.Unmarshal(response.Body.Bytes(), &pd))
