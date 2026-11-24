@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
@@ -176,6 +177,9 @@ func (a *AusfApp) Start() {
 	a.wg.Add(1)
 	go a.listenShutdownEvent()
 
+	a.wg.Add(1)
+	go a.reapStaleUeAuthContexts()
+
 	if err := a.sbiServer.Run(a.ctx, &a.wg); err != nil {
 		logger.MainLog.Fatalf("Run SBI server failed: %+v", err)
 	}
@@ -199,6 +203,34 @@ func (a *AusfApp) listenShutdownEvent() {
 
 	<-a.ctx.Done()
 	a.terminateProcedure()
+}
+
+// reapStaleUeAuthContexts periodically clears AUSF UE authentication
+// contexts abandoned mid-handshake (crashed AMF, lost UE, a dropped resync)
+// - nothing else ever deletes those, so without this the context pool grows
+// without bound under sustained load.
+func (a *AusfApp) reapStaleUeAuthContexts() {
+	defer func() {
+		if p := recover(); p != nil {
+			logger.MainLog.Fatalf("panic: %v\n%s", p, string(debug.Stack()))
+		}
+		a.wg.Done()
+	}()
+
+	ttl := a.cfg.GetUeAuthContextExpire()
+	ticker := time.NewTicker(ttl / 2)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-a.ctx.Done():
+			return
+		case <-ticker.C:
+			if n := a.ausfCtx.ReapStaleUeAuthContexts(ttl); n > 0 {
+				logger.MainLog.Debugf("reaped %d stale UE auth context(s)", n)
+			}
+		}
+	}
 }
 
 func (a *AusfApp) Terminate() {
