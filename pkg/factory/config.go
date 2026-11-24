@@ -39,6 +39,12 @@ const (
 	AusfUpuprotectionResUriPrefix = "/nausf-upuprotection/v1"
 )
 
+// AusfDefaultUeAuthContextExpire bounds how long an AusfUeContext / SUCI-SUPI
+// pair may live without reaching a terminal auth result before the
+// background reaper reclaims it (crashed AMF, lost UE, or an abandoned
+// resync never signal AUSF to clean up on their own).
+const AusfDefaultUeAuthContextExpire = 60 * time.Second
+
 type Config struct {
 	Info          *Info          `yaml:"info" valid:"required"`
 	Configuration *Configuration `yaml:"configuration" valid:"required"`
@@ -70,6 +76,7 @@ type Configuration struct {
 	ReadIdleTimeout      *time.Duration  `yaml:"readIdleTimeout,omitempty" valid:"optional"`
 	PingTimeout          *time.Duration  `yaml:"pingTimeout,omitempty" valid:"optional"`
 	IdleTimeout          *time.Duration  `yaml:"idleTimeout,omitempty" valid:"optional"`
+	UeAuthContextExpire  *time.Duration  `yaml:"ueAuthContextExpire,omitempty" valid:"optional"`
 	NfInstanceId         string          `yaml:"nfInstanceId,omitempty" valid:"optional,uuidv4"`
 	Sbi                  *Sbi            `yaml:"sbi,omitempty" valid:"required"`
 	Metrics              *Metrics        `yaml:"metrics,omitempty" valid:"optional"`
@@ -502,6 +509,17 @@ func (c *Config) GetPingTimeout() time.Duration {
 		return 2 * time.Second
 	}
 	return *c.Configuration.PingTimeout
+}
+
+// GetUeAuthContextExpire bounds how long an AusfUeContext may sit without
+// reaching a terminal auth result before the background reaper reclaims it.
+func (c *Config) GetUeAuthContextExpire() time.Duration {
+	c.RLock()
+	defer c.RUnlock()
+	if c.Configuration == nil || c.Configuration.UeAuthContextExpire == nil {
+		return AusfDefaultUeAuthContextExpire
+	}
+	return *c.Configuration.UeAuthContextExpire
 }
 
 // GetTLSVerify controls outgoing SBI server certificate verification.

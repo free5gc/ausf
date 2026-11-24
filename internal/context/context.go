@@ -52,6 +52,9 @@ type AusfUeContext struct {
 	AuthType           models.Ausf_UEAU_AuthType
 	AuthStatus         models.Ausf_UEAU_AuthResult
 	UdmUeauUrl         string
+	// ConfirmedAt lets the background reaper find confirmed contexts that
+	// were never cleared by an explicit Deregister call.
+	ConfirmedAt time.Time
 
 	// for 5G AKA
 	XresStar string
@@ -189,6 +192,7 @@ func (c *AUSFContext) ConfirmAuthCtx(authCtxId string, ue *AusfUeContext) {
 		delete(c.authCtxs, authCtxId)
 	}
 	c.authCtxMu.Unlock()
+	ue.ConfirmedAt = time.Now()
 	c.UePool.Store(ue.Supi, ue)
 }
 
@@ -199,6 +203,39 @@ func (c *AUSFContext) ConfirmAuthCtx(authCtxId string, ue *AusfUeContext) {
 func (c *AUSFContext) RemoveUEAuthenticationContext(supi string) bool {
 	_, found := c.UePool.LoadAndDelete(supi)
 	return found
+}
+
+// ReapStaleUeAuthContexts removes every confirmed AusfUeContext that has sat
+// in UePool longer than ttl without an explicit TS 29.509 Deregister call -
+// a crashed AMF or a UE that never properly detaches leaves one behind
+// forever otherwise, since nothing else clears it. It returns the number of
+// contexts reaped.
+//
+// Each stale entry is deleted with CompareAndDelete against the exact
+// *AusfUeContext found during the scan, not a LoadAndDelete by key: the scan
+// and the delete are two separate passes, so without this a SUPI that
+// re-authenticates in between could have that fresh confirmation deleted
+// instead of the stale one it replaced.
+func (c *AUSFContext) ReapStaleUeAuthContexts(ttl time.Duration) int {
+	now := time.Now()
+	type staleEntry struct {
+		key, value any
+	}
+	var stale []staleEntry
+	c.UePool.Range(func(key, value any) bool {
+		if ue, ok := value.(*AusfUeContext); ok && now.Sub(ue.ConfirmedAt) > ttl {
+			stale = append(stale, staleEntry{key: key, value: value})
+		}
+		return true
+	})
+
+	reaped := 0
+	for _, e := range stale {
+		if c.UePool.CompareAndDelete(e.key, e.value) {
+			reaped++
+		}
+	}
+	return reaped
 }
 
 func IsServingNetworkAuthorized(lookup string) bool {
