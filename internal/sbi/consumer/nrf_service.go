@@ -338,9 +338,8 @@ func (s *nnrfService) GetUdmUrl(nrfUri string) (string, error) {
 		return "", err
 	}
 
-	// NFs that still register a full URL as apiPrefix remain reachable.
 	_, udmUrl, err := serviceuri.ResolveFromSearchResult(res.NfInstances, models.Nrf_NFMgmt_ServiceName_NUDM_UEAU,
-		serviceuri.Options{AllowLegacyAbsoluteAPIPrefix: true})
+		serviceuri.Options{})
 	if err != nil {
 		return "", err
 	}
